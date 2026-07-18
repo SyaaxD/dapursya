@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbzr8BkNpJgXKno19KxXuFNs744sYQ3IJbSgNVfCVGVtJcbHebjoXg_ZhUEAqf0FAcdp/exec"
+const API_URL = "/api/submit"
 document.querySelector('#app').innerHTML = `
 
 <div class="container">
@@ -119,11 +119,11 @@ if (menuTerpilih === "") {
 }
 
 fetch(API_URL, {
-
     method: "POST",
-
+    headers: {
+        "Content-Type": "application/json"
+    },
     body: JSON.stringify(data)
-
 })
 
 .then(response => response.json())
