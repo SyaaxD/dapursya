@@ -1,7 +1,6 @@
-{
-  "functions": {
-    "api/*.js": {
-      "runtime": "@vercel/node"
-    }
-  }
+export default function handler(req, res) {
+  res.status(200).json({
+    success: true,
+    message: "Backend DapurSya berjalan 🚀"
+  });
 }
