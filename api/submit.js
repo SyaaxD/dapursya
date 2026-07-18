@@ -1,8 +1,6 @@
-export default async function handler(req, res) {
-
-    res.status(200).json({
-        success: true,
-        message: "Backend DapurSya berjalan 🚀"
-    })
-
+export default function handler(req, res) {
+  res.status(200).json({
+    success: true,
+    message: "Backend DapurSya berjalan 🚀"
+  });
 }
