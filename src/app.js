@@ -1,4 +1,8 @@
-const API_URL = "/api/submit"
+// =====================================
+// CONFIG
+// =====================================
+
+const API_URL="/api/submit"
 document.querySelector('#app').innerHTML = `
 
 <div class="container">
@@ -79,20 +83,52 @@ document.querySelector('#app').innerHTML = `
 
 <div id="toast"></div>
 
+<div id="successModal" class="modal">
+
+    <div class="modal-content">
+
+        <div class="success-icon">🍱</div>
+
+        <h2>Pesanan Berhasil!</h2>
+
+        <p id="modalText"></p>
+
+        <button id="tutupModal">
+            Tutup
+        </button>
+
+    </div>
+
+</div>
+
 </div>
 `
+// =====================================
+// DOM ELEMENTS
+// =====================================
+
+const inputNama = document.getElementById("nama");
+const inputCatatan = document.getElementById("catatan");
+const tombolKirim = document.getElementById("kirim");
+const toast = document.getElementById("toast");
+const modal = document.getElementById("successModal");
+const modalText = document.getElementById("modalText");
+const tutupModal = document.getElementById("tutupModal");
+const menuCards = document.querySelectorAll(".menu-card");
+
 let menuTerpilih = ""
+let sedangMengirim = false;
 
-const menuCards = document.querySelectorAll('.menu-card')
-const tombolKirim = document.getElementById("kirim")
+tombolKirim.addEventListener("click", async () => {
 
-tombolKirim.addEventListener("click", () => {
+    if (sedangMengirim) return;
 
-    const nama = document.getElementById("nama").value
+    sedangMengirim = true;
 
-    const catatan = document.getElementById("catatan").value
+    tombolKirim.disabled = true;
+    tombolKirim.textContent = "⏳ Mengirim...";
 
-  if (nama.trim() === "") {
+  if (inputNama.value.trim() === "") {
 
       showToast("⚠ Nama anak wajib diisi", "warning")
 
@@ -108,6 +144,9 @@ if (menuTerpilih === "") {
 
 }
 
+const nama = inputNama.value.trim();
+const catatan = inputCatatan.value.trim();
+
     const data = {
 
     nama,
@@ -118,29 +157,37 @@ if (menuTerpilih === "") {
 
 }
 
-fetch(API_URL, {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/json"
-    },
-    body: JSON.stringify(data)
-})
+try {
 
-.then(response => response.json())
-.then(result => {
+    const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
+    });
 
-    console.log(result)
+    const result = await response.json();
 
-    showToast("✅ Data berhasil dikirim", "success")
+    console.log(result);
 
-})
-.catch(error => {
+    showSuccessModal(nama, menuTerpilih);
 
-    console.error(error)
+} catch (error) {
 
-    showToast("❌ Terjadi kesalahan", "error")
+    console.error(error);
 
-})
+    showToast("❌ Terjadi kesalahan", "error");
+
+} finally {
+
+    sedangMengirim = false;
+
+    tombolKirim.disabled = false;
+
+    tombolKirim.textContent = "Kirim Pilihan";
+
+}
 
 })
 
@@ -156,8 +203,6 @@ menuCards.forEach(card => {
     })
 
 })
-
-const toast = document.getElementById("toast")
 
 function showToast(pesan, tipe){
 
@@ -192,3 +237,31 @@ function showToast(pesan, tipe){
     },3000)
 
 }
+
+function showSuccessModal(nama, menu){
+
+    modalText.innerHTML = `
+        <strong>${nama}</strong><br><br>
+        Menu yang dipilih:<br>
+        <b>${menu}</b>
+    `;
+
+    modal.classList.add("show");
+
+}
+
+tutupModal.addEventListener("click",()=>{
+
+    modal.classList.remove("show");
+
+    inputNama.value="";
+
+    inputCatatan.value="";
+
+    menuTerpilih="";
+
+    menuCards.forEach(c=>c.classList.remove("selected"));
+
+    inputNama.focus();
+
+});
