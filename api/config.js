@@ -32,6 +32,10 @@ export default async function handler(req, res) {
 
         });
 
+        // Config jarang berubah (biasanya cuma kamu edit manual di Sheet),
+        // jadi cache-nya bisa lebih lama dari stats.
+        res.setHeader("Cache-Control", "s-maxage=10, stale-while-revalidate=30");
+
         res.status(200).json({
 
             success: true,
@@ -47,7 +51,7 @@ export default async function handler(req, res) {
         res.status(500).json({
 
             success: false,
-            message: err.message
+            message: "Gagal mengambil konfigurasi"
 
         });
 

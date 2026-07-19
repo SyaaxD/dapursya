@@ -12,6 +12,46 @@ const auth = new google.auth.GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
+const MENU_VALID = ["Ayam Teriyaki", "Ikan Crispy"];
+const NAMA_MAX_LENGTH = 100;
+const CATATAN_MAX_LENGTH = 300;
+
+// Cegah formula injection: kalau teks diawali =, +, -, @, Google Sheets
+// bisa nge-treat itu sebagai formula, bukan teks biasa.
+function sanitize(value) {
+  const text = String(value ?? "").trim();
+
+  if (/^[=+\-@]/.test(text)) {
+    return `'${text}`;
+  }
+
+  return text;
+}
+
+function validateInput(body) {
+  const nama = sanitize(body.nama);
+  const menu = String(body.menu ?? "").trim();
+  const catatan = sanitize(body.catatan);
+
+  if (!nama) {
+    return { error: "Nama anak wajib diisi" };
+  }
+
+  if (nama.length > NAMA_MAX_LENGTH) {
+    return { error: "Nama terlalu panjang" };
+  }
+
+  if (!MENU_VALID.includes(menu)) {
+    return { error: "Menu yang dipilih tidak valid" };
+  }
+
+  if (catatan.length > CATATAN_MAX_LENGTH) {
+    return { error: "Catatan terlalu panjang" };
+  }
+
+  return { nama, menu, catatan };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({
@@ -20,9 +60,18 @@ export default async function handler(req, res) {
     });
   }
 
-  try {
-    const { nama, menu, catatan } = req.body;
+  const validated = validateInput(req.body || {});
 
+  if (validated.error) {
+    return res.status(400).json({
+      success: false,
+      message: validated.error,
+    });
+  }
+
+  const { nama, menu, catatan } = validated;
+
+  try {
     const sheets = google.sheets({
       version: "v4",
       auth,
@@ -51,8 +100,7 @@ export default async function handler(req, res) {
 
     return res.status(500).json({
       success: false,
-      message: err.message,
-      stack: err.stack,
+      message: "Terjadi kesalahan di server, coba lagi.",
     });
   }
 }

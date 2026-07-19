@@ -34,6 +34,12 @@ export default async function handler(req, res) {
 
         });
 
+        // Cache di edge Vercel selama 5 detik, dan boleh serve versi basi
+        // sampai 15 detik sambil di-refresh di belakang layar. Ini bikin
+        // ratusan user yang polling barengan cukup 1x hit ke Google Sheets,
+        // bukan 1 hit per user -- penting buat jaga kuota API.
+        res.setHeader("Cache-Control", "s-maxage=5, stale-while-revalidate=15");
+
         res.status(200).json({
 
             success: true,
@@ -54,7 +60,7 @@ export default async function handler(req, res) {
 
             success: false,
 
-            message: err.message
+            message: "Gagal mengambil statistik"
 
         });
 
