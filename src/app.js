@@ -6,7 +6,7 @@ const API_URL = "/api/submit";
 const WA_NUMBER = "6281389490706";
 const WA_MESSAGE = encodeURIComponent("Halo, saya mau tanya soal DapurSya");
 const MAX_ANAK = 10;
-const MENU_EMOJIS = ["🍱", "🍗", "🍛", "🍝", "🥘", "🍲", "🍚", "🍽️"];
+const MENU_EMOJI = "🍽️";
 
 document.querySelector("#app").innerHTML = `
   <div id="loadingBar"></div>
@@ -30,12 +30,6 @@ document.querySelector("#app").innerHTML = `
       <div id="tanggal"></div>
       <div id="statusOrder"></div>
 
-      <div id="emptyState" class="empty-state">
-        Belum ada yang memilih menu hari ini 🍱
-      </div>
-
-      <div id="globalStats" class="global-stats"></div>
-
       <section class="order-form-section">
         <div class="form-section-heading">
           <h3>Nama Anak</h3>
@@ -53,6 +47,9 @@ document.querySelector("#app").innerHTML = `
         <div class="form-group">
           <label>Pilih Menu untuk Semua Anak</label>
           <p class="form-helper">Menu yang dipilih berlaku untuk semua nama di atas.</p>
+          <div id="emptyState" class="empty-state" style="display:none">
+            Belum ada yang memilih menu hari ini 🍱
+          </div>
           <div id="menuPilihan" class="menu-grid"></div>
         </div>
 
@@ -114,7 +111,6 @@ const statusOrder = document.getElementById("statusOrder");
 const tanggal = document.getElementById("tanggal");
 const btnText = document.getElementById("btnText");
 const emptyState = document.getElementById("emptyState");
-const globalStats = document.getElementById("globalStats");
 const namaAnakContainer = document.getElementById("namaAnakContainer");
 const tambahAnak = document.getElementById("tambahAnak");
 const menuPilihan = document.getElementById("menuPilihan");
@@ -149,8 +145,8 @@ function arraysEqual(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function menuEmoji(index) {
-  return MENU_EMOJIS[index] || "🍽️";
+function menuEmoji() {
+  return MENU_EMOJI;
 }
 
 // =====================================
@@ -230,19 +226,31 @@ function renderMenuPilihan() {
     return;
   }
 
+  const counts = state.menuNames.map((menu) => Number(state.stats[menu] || 0));
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  const maxCount = Math.max(...counts);
+  const winners = state.menuNames.filter(
+    (menu) => Number(state.stats[menu] || 0) === maxCount
+  );
+
   menuPilihan.innerHTML = state.menuNames
-    .map(
-      (menu, index) => `
+    .map((menu, index) => {
+      const badge = getBadgeText(menu, total, maxCount, winners);
+      return `
         <button
           type="button"
           class="menu-card menu-choice ${state.selectedMenu === menu ? "selected" : ""}"
           data-menu-index="${index}"
         >
-          <span class="emoji">${menuEmoji(index)}</span>
+          ${badge ? `<span class="badge">${badge}</span>` : ""}
+          <span class="emoji">${menuEmoji()}</span>
           <span class="menu-choice-title">${escapeHtml(menu)}</span>
+          <span class="menu-count">
+            👥 ${Number(state.stats[menu] || 0)} orang memilih
+          </span>
         </button>
-      `
-    )
+      `;
+    })
     .join("");
 
   menuPilihan.querySelectorAll(".menu-choice").forEach((card) => {
@@ -329,35 +337,16 @@ function getBadgeText(menu, total, maxCount, winners) {
 
 function renderStats() {
   if (state.menuNames.length === 0) {
-    globalStats.innerHTML = "";
-    emptyState.style.display = "block";
+    emptyState.style.display = "none";
+    renderMenuPilihan();
     return;
   }
 
   const counts = state.menuNames.map((menu) => Number(state.stats[menu] || 0));
   const total = counts.reduce((sum, count) => sum + count, 0);
-  const maxCount = Math.max(...counts);
-  const winners = state.menuNames.filter(
-    (menu) => Number(state.stats[menu] || 0) === maxCount
-  );
 
   emptyState.style.display = total === 0 ? "block" : "none";
-
-  globalStats.innerHTML = state.menuNames
-    .map((menu, index) => {
-      const badge = getBadgeText(menu, total, maxCount, winners);
-      return `
-        <div class="menu-card static">
-          ${badge ? `<div class="badge">${badge}</div>` : ""}
-          <div class="emoji">${menuEmoji(index)}</div>
-          <h3>${escapeHtml(menu)}</h3>
-          <div class="menu-count">
-            👥 <span>${Number(state.stats[menu] || 0)}</span> orang memilih
-          </div>
-        </div>
-      `;
-    })
-    .join("");
+  renderMenuPilihan();
 }
 
 async function loadStats() {
@@ -403,7 +392,6 @@ async function loadConfig() {
         state.selectedMenu = "";
       }
 
-      renderMenuPilihan();
       renderStats();
     }
 

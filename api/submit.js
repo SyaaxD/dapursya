@@ -63,6 +63,13 @@ function extractMenus(config) {
   return menus;
 }
 
+function parseHarga(value) {
+  if (typeof value === "number") return Math.max(0, value);
+
+  const digits = String(value ?? "").replace(/[^\d-]/g, "");
+  return Math.max(0, Number(digits) || 0);
+}
+
 function getJakartaDateParts() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
@@ -160,6 +167,7 @@ async function getActiveAddons(sheets) {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.SPREADSHEET_ID,
       range: "ADDONS!A:C",
+      valueRenderOption: "UNFORMATTED_VALUE",
     });
 
     const rows = response.data.values || [];
@@ -167,7 +175,7 @@ async function getActiveAddons(sheets) {
     return rows
       .slice(1)
       .filter((row) => row[0] && row[2] === "Ya")
-      .map((row) => ({ nama: row[0], harga: Number(row[1]) || 0 }));
+      .map((row) => ({ nama: row[0], harga: parseHarga(row[1]) }));
   } catch (err) {
     return [];
   }
