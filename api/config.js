@@ -5,6 +5,18 @@ const auth = new google.auth.GoogleAuth({
     scopes: ["https://www.googleapis.com/auth/spreadsheets"]
 });
 
+function extractMenus(config) {
+    const menus = [];
+
+    for (let index = 1; ; index++) {
+        const menu = String(config[`Menu ${index}`] ?? "").trim();
+        if (!menu) break;
+        menus.push(menu);
+    }
+
+    return menus;
+}
+
 export default async function handler(req, res) {
 
     try {
@@ -24,8 +36,11 @@ export default async function handler(req, res) {
         const config = {};
 
         settingRows.forEach(row => {
-            config[row[0]] = row[1];
+            const key = String(row[0] ?? "").trim();
+            if (key) config[key] = row[1];
         });
+
+        const menus = extractMenus(config);
 
         // ADDONS sheet sifatnya opsional -- kalau belum dibikin,
         // jangan sampai nge-break seluruh /api/config.
@@ -59,6 +74,8 @@ export default async function handler(req, res) {
             success: true,
 
             config,
+
+            menus,
 
             addons
 

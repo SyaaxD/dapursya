@@ -5,87 +5,102 @@
 const API_URL = "/api/submit";
 const WA_NUMBER = "6281389490706";
 const WA_MESSAGE = encodeURIComponent("Halo, saya mau tanya soal DapurSya");
+const MAX_ANAK = 10;
+const MENU_EMOJIS = ["🍱", "🍗", "🍛", "🍝", "🥘", "🍲", "🍚", "🍽️"];
 
-document.querySelector('#app').innerHTML = `
-<div id="loadingBar"></div>
-<a
-  id="waFloat"
-  class="wa-float"
-  href="https://wa.me/${WA_NUMBER}?text=${WA_MESSAGE}"
-  target="_blank"
-  rel="noopener"
->💬 Chat Admin</a>
-<div class="container">
+document.querySelector("#app").innerHTML = `
+  <div id="loadingBar"></div>
+  <a
+    id="waFloat"
+    class="wa-float"
+    href="https://wa.me/${WA_NUMBER}?text=${WA_MESSAGE}"
+    target="_blank"
+    rel="noopener"
+  >💬 Chat Admin</a>
 
+  <div class="container">
     <header>
-        <h1>Dapur<span>Sya</span></h1>
-        <p>Cita Rasa Resep Keluarga</p>
+      <h1>Dapur<span>Sya</span></h1>
+      <p>Cita Rasa Resep Keluarga</p>
     </header>
 
     <main class="card">
-        <h2>Pilih Menu Besok</h2>
+      <h2>Pilih Menu Besok</h2>
 
-        <div id="tanggal"></div>
-        <div id="statusOrder"></div>
+      <div id="tanggal"></div>
+      <div id="statusOrder"></div>
 
-        <div id="emptyState" class="empty-state">
-            Belum ada yang memilih menu hari ini 🍱
+      <div id="emptyState" class="empty-state">
+        Belum ada yang memilih menu hari ini 🍱
+      </div>
+
+      <div id="globalStats" class="global-stats"></div>
+
+      <section class="order-form-section">
+        <div class="form-section-heading">
+          <h3>Nama Anak</h3>
+          <p>Masukkan nama dan kelas setiap anak.</p>
         </div>
 
-        <div class="global-stats">
-            <div class="menu-card static">
-                <div class="badge" id="badge1"></div>
-                <div class="emoji">🍗</div>
-                <h3 id="menuTitle1">Ayam Teriyaki</h3>
-                <div class="menu-count">👥 <span id="ayamCount">0</span> orang memilih</div>
-            </div>
-            <div class="menu-card static">
-                <div class="badge" id="badge2"></div>
-                <div class="emoji">🐟</div>
-                <h3 id="menuTitle2">Ikan Crispy</h3>
-                <div class="menu-count">👥 <span id="ikanCount">0</span> orang memilih</div>
-            </div>
-        </div>
+        <div id="namaAnakContainer"></div>
 
-        <div id="anakContainer"></div>
-
-        <button type="button" id="tambahAnak" class="tambah-anak-btn">+ Tambah Anak</button>
-
-        <button id="kirim">
-            <span id="btnText">Kirim Pilihan</span>
+        <button type="button" id="tambahAnak" class="tambah-anak-btn">
+          + Tambah Anak
         </button>
+      </section>
+
+      <section class="order-form-section">
+        <div class="form-group">
+          <label>Pilih Menu untuk Semua Anak</label>
+          <p class="form-helper">Menu yang dipilih berlaku untuk semua nama di atas.</p>
+          <div id="menuPilihan" class="menu-grid"></div>
+        </div>
+
+        <div id="addonsContainer"></div>
+
+        <div class="form-group">
+          <label for="catatan">Catatan</label>
+          <textarea id="catatan" placeholder="Opsional, berlaku untuk semua anak..."></textarea>
+        </div>
+      </section>
+
+      <button id="kirim" disabled>
+        <span id="btnText">Memuat Menu...</span>
+      </button>
     </main>
 
     <div id="toast"></div>
 
     <div id="successModal" class="modal">
-        <div class="modal-content">
-            <div class="success-icon">🍱</div>
-            <h2>Pesanan Berhasil!</h2>
-            <p id="modalText"></p>
-            <a id="waConfirmBtn" class="wa-modal-btn" target="_blank" rel="noopener">📩 Simpan Bukti ke WA</a>
-            <button id="tutupModal">Tutup</button>
-        </div>
+      <div class="modal-content">
+        <div class="success-icon">🍱</div>
+        <h2>Pesanan Berhasil!</h2>
+        <p id="modalText"></p>
+        <a id="waConfirmBtn" class="wa-modal-btn" target="_blank" rel="noopener">
+          📩 Simpan Bukti ke WA
+        </a>
+        <button id="tutupModal">Tutup</button>
+      </div>
     </div>
 
     <div id="closedModal" class="modal">
-        <div class="modal-content">
-            <div class="success-icon">🕒</div>
-            <h2>Belum Bisa Pesan</h2>
-            <p id="closedModalText"></p>
-            <a
-              class="wa-modal-btn"
-              href="https://wa.me/${WA_NUMBER}?text=${WA_MESSAGE}"
-              target="_blank"
-              rel="noopener"
-            >💬 Chat Admin</a>
-        </div>
+      <div class="modal-content">
+        <div class="success-icon">🕒</div>
+        <h2>Belum Bisa Pesan</h2>
+        <p id="closedModalText"></p>
+        <a
+          class="wa-modal-btn"
+          href="https://wa.me/${WA_NUMBER}?text=${WA_MESSAGE}"
+          target="_blank"
+          rel="noopener"
+        >💬 Chat Admin</a>
+      </div>
     </div>
-</div>
+  </div>
 `;
 
 // =====================================
-// DOM ELEMENTS
+// DOM & STATE
 // =====================================
 
 const tombolKirim = document.getElementById("kirim");
@@ -95,246 +110,370 @@ const modalText = document.getElementById("modalText");
 const waConfirmBtn = document.getElementById("waConfirmBtn");
 const tutupModal = document.getElementById("tutupModal");
 const loadingBar = document.getElementById("loadingBar");
-const ayamCount = document.getElementById("ayamCount");
-const ikanCount = document.getElementById("ikanCount");
-const menuTitle1 = document.getElementById("menuTitle1");
-const menuTitle2 = document.getElementById("menuTitle2");
 const statusOrder = document.getElementById("statusOrder");
 const tanggal = document.getElementById("tanggal");
-const badge1 = document.getElementById("badge1");
-const badge2 = document.getElementById("badge2");
 const btnText = document.getElementById("btnText");
 const emptyState = document.getElementById("emptyState");
-const anakContainer = document.getElementById("anakContainer");
+const globalStats = document.getElementById("globalStats");
+const namaAnakContainer = document.getElementById("namaAnakContainer");
 const tambahAnak = document.getElementById("tambahAnak");
+const menuPilihan = document.getElementById("menuPilihan");
+const addonsContainer = document.getElementById("addonsContainer");
+const catatanInput = document.getElementById("catatan");
 const closedModal = document.getElementById("closedModal");
 const closedModalText = document.getElementById("closedModalText");
 
-// =====================================
-// STATE
-// =====================================
-
 const state = {
-  anakList: [{ nama: "", menu: "", catatan: "", addons: [] }],
-  menuNames: ["Ayam Teriyaki", "Ikan Crispy"],
+  namaAnak: [""],
+  selectedMenu: "",
+  selectedAddons: [],
+  menuNames: [],
   addonsMaster: [],
+  stats: {},
   sedangMengirim: false,
+  configLoaded: false,
   openTime: "",
-  closeTime: "20:00", // fallback sebelum /api/config kebaca
+  closeTime: "",
 };
 
-// =====================================
-// RENDER ANAK BLOCKS
-// =====================================
-
-function renderAnakBlock(anak, i) {
-  const addonsHtml = state.addonsMaster.length
-    ? `
-      <div class="form-group">
-        <button type="button" class="addons-toggle anak-addons-toggle" data-index="${i}">
-          + Tambah Add-ons <span class="addons-toggle-icon">▾</span>
-        </button>
-        <div class="addons-panel anak-addons-panel" data-index="${i}">
-          ${state.addonsMaster
-            .map(
-              (addon, j) => `
-            <label class="addons-item">
-              <span class="addons-item-left">
-                <input type="checkbox" class="addons-checkbox anak-addons-checkbox" data-index="${i}" data-addon="${j}" ${
-                anak.addons.includes(addon.nama) ? "checked" : ""
-              }>
-                ${addon.nama}
-              </span>
-              <span class="addons-item-price">Rp${addon.harga.toLocaleString("id-ID")}</span>
-            </label>
-          `
-            )
-            .join("")}
-        </div>
-      </div>
-    `
-    : "";
-
-  return `
-    <div class="anak-block">
-      <div class="anak-block-header">
-        <span class="anak-block-title">Anak ${i + 1}</span>
-        ${
-          state.anakList.length > 1
-            ? `<button type="button" class="hapus-anak-btn" data-index="${i}">✕ Hapus</button>`
-            : ""
-        }
-      </div>
-
-      <div class="form-group">
-        <label for="anakNama${i}">Nama Anak & Kelas</label>
-        <input id="anakNama${i}" class="anak-nama-input" data-index="${i}" type="text" placeholder="Contoh : Andi - 3B" autocomplete="off" value="${anak.nama}">
-      </div>
-
-      <div class="form-group">
-        <label>Pilih Menu</label>
-        <div class="menu-grid anak-menu-grid" data-index="${i}">
-          <div class="menu-card ${anak.menu === state.menuNames[0] ? "selected" : ""}" data-menu="${state.menuNames[0]}" data-index="${i}">
-            <div class="emoji">🍗</div>
-            <h3>${state.menuNames[0]}</h3>
-          </div>
-          <div class="menu-card ${anak.menu === state.menuNames[1] ? "selected" : ""}" data-menu="${state.menuNames[1]}" data-index="${i}">
-            <div class="emoji">🐟</div>
-            <h3>${state.menuNames[1]}</h3>
-          </div>
-        </div>
-      </div>
-
-      ${addonsHtml}
-
-      <div class="form-group">
-        <label for="anakCatatan${i}">Catatan</label>
-        <textarea id="anakCatatan${i}" class="anak-catatan-input" data-index="${i}" placeholder="Opsional...">${anak.catatan}</textarea>
-      </div>
-    </div>
-  `;
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function renderAnakList() {
-  anakContainer.innerHTML = state.anakList
-    .map((anak, i) => renderAnakBlock(anak, i))
+function arraysEqual(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function menuEmoji(index) {
+  return MENU_EMOJIS[index] || "🍽️";
+}
+
+// =====================================
+// NAMA ANAK
+// =====================================
+
+function renderNamaAnak() {
+  namaAnakContainer.innerHTML = state.namaAnak
+    .map(
+      (nama, index) => `
+        <div class="nama-anak-row">
+          <div class="form-group nama-anak-field">
+            <label for="anakNama${index}">Anak ${index + 1}</label>
+            <input
+              id="anakNama${index}"
+              class="anak-nama-input"
+              data-index="${index}"
+              type="text"
+              maxlength="100"
+              placeholder="Contoh: Andi - 3B"
+              autocomplete="off"
+              value="${escapeHtml(nama)}"
+            >
+          </div>
+          ${
+            state.namaAnak.length > 1
+              ? `<button type="button" class="hapus-anak-btn" data-index="${index}">✕ Hapus</button>`
+              : ""
+          }
+        </div>
+      `
+    )
     .join("");
 
-  attachAnakListeners();
+  namaAnakContainer.querySelectorAll(".anak-nama-input").forEach((input) => {
+    input.addEventListener("input", () => {
+      state.namaAnak[Number(input.dataset.index)] = input.value;
+    });
+  });
+
+  namaAnakContainer.querySelectorAll(".hapus-anak-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.namaAnak.splice(Number(button.dataset.index), 1);
+      renderNamaAnak();
+    });
+  });
+
+  tambahAnak.disabled = state.namaAnak.length >= MAX_ANAK;
 }
 
-function attachAnakListeners() {
-  anakContainer.querySelectorAll(".anak-nama-input").forEach((input) => {
-    input.addEventListener("input", () => {
-      state.anakList[Number(input.dataset.index)].nama = input.value;
-    });
-  });
+tambahAnak.addEventListener("click", () => {
+  if (state.namaAnak.length >= MAX_ANAK) {
+    showToast(`⚠ Maksimal ${MAX_ANAK} anak per pengiriman`, "warning");
+    return;
+  }
 
-  anakContainer.querySelectorAll(".anak-catatan-input").forEach((textarea) => {
-    textarea.addEventListener("input", () => {
-      state.anakList[Number(textarea.dataset.index)].catatan = textarea.value;
-    });
-  });
+  state.namaAnak.push("");
+  renderNamaAnak();
 
-  anakContainer.querySelectorAll(".anak-menu-grid .menu-card").forEach((card) => {
+  const lastInput = namaAnakContainer.querySelector(
+    `.anak-nama-input[data-index="${state.namaAnak.length - 1}"]`
+  );
+  lastInput?.focus();
+});
+
+// =====================================
+// MENU, ADD-ONS, DAN STATISTIK
+// =====================================
+
+function renderMenuPilihan() {
+  if (state.menuNames.length === 0) {
+    menuPilihan.innerHTML = `
+      <div class="menu-config-error">
+        Menu belum tersedia. Silakan chat admin untuk konfirmasi.
+      </div>
+    `;
+    return;
+  }
+
+  menuPilihan.innerHTML = state.menuNames
+    .map(
+      (menu, index) => `
+        <button
+          type="button"
+          class="menu-card menu-choice ${state.selectedMenu === menu ? "selected" : ""}"
+          data-menu-index="${index}"
+        >
+          <span class="emoji">${menuEmoji(index)}</span>
+          <span class="menu-choice-title">${escapeHtml(menu)}</span>
+        </button>
+      `
+    )
+    .join("");
+
+  menuPilihan.querySelectorAll(".menu-choice").forEach((card) => {
     card.addEventListener("click", () => {
-      const i = Number(card.dataset.index);
-      state.anakList[i].menu = card.dataset.menu;
-
-      anakContainer
-        .querySelectorAll(`.anak-menu-grid[data-index="${i}"] .menu-card`)
-        .forEach((c) => c.classList.remove("selected"));
-
-      card.classList.add("selected");
+      const menu = state.menuNames[Number(card.dataset.menuIndex)];
+      if (!menu) return;
+      state.selectedMenu = menu;
+      renderMenuPilihan();
     });
   });
+}
 
-  anakContainer.querySelectorAll(".anak-addons-toggle").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const i = btn.dataset.index;
-      const panel = anakContainer.querySelector(`.anak-addons-panel[data-index="${i}"]`);
-      const icon = btn.querySelector(".addons-toggle-icon");
-      const isOpen = panel.classList.toggle("open");
-      icon.textContent = isOpen ? "▴" : "▾";
-    });
+function renderAddons() {
+  if (state.addonsMaster.length === 0) {
+    addonsContainer.innerHTML = "";
+    return;
+  }
+
+  addonsContainer.innerHTML = `
+    <div class="form-group">
+      <button type="button" id="addonsToggle" class="addons-toggle">
+        + Tambah Add-ons <span class="addons-toggle-icon">▾</span>
+      </button>
+      <div id="addonsPanel" class="addons-panel">
+        ${state.addonsMaster
+          .map(
+            (addon, index) => `
+              <label class="addons-item">
+                <span class="addons-item-left">
+                  <input
+                    type="checkbox"
+                    class="addons-checkbox"
+                    data-addon-index="${index}"
+                    ${state.selectedAddons.includes(addon.nama) ? "checked" : ""}
+                  >
+                  ${escapeHtml(addon.nama)}
+                </span>
+                <span class="addons-item-price">
+                  Rp${Number(addon.harga).toLocaleString("id-ID")}
+                </span>
+              </label>
+            `
+          )
+          .join("")}
+      </div>
+      <p class="form-helper">Add-ons yang dipilih berlaku untuk setiap anak.</p>
+    </div>
+  `;
+
+  const toggle = document.getElementById("addonsToggle");
+  const panel = document.getElementById("addonsPanel");
+
+  toggle.addEventListener("click", () => {
+    const isOpen = panel.classList.toggle("open");
+    toggle.querySelector(".addons-toggle-icon").textContent = isOpen ? "▴" : "▾";
   });
 
-  anakContainer.querySelectorAll(".anak-addons-checkbox").forEach((checkbox) => {
+  panel.querySelectorAll(".addons-checkbox").forEach((checkbox) => {
     checkbox.addEventListener("change", () => {
-      const i = Number(checkbox.dataset.index);
-      const addon = state.addonsMaster[Number(checkbox.dataset.addon)];
+      const addon = state.addonsMaster[Number(checkbox.dataset.addonIndex)];
+      if (!addon) return;
 
       if (checkbox.checked) {
-        state.anakList[i].addons.push(addon.nama);
+        if (!state.selectedAddons.includes(addon.nama)) {
+          state.selectedAddons.push(addon.nama);
+        }
       } else {
-        state.anakList[i].addons = state.anakList[i].addons.filter(
+        state.selectedAddons = state.selectedAddons.filter(
           (nama) => nama !== addon.nama
         );
       }
     });
   });
-
-  anakContainer.querySelectorAll(".hapus-anak-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.anakList.splice(Number(btn.dataset.index), 1);
-      renderAnakList();
-    });
-  });
 }
 
-tambahAnak.addEventListener("click", () => {
-  if (state.anakList.length >= 10) {
-    showToast("⚠ Maksimal 10 anak per pengiriman", "warning");
+function getBadgeText(menu, total, maxCount, winners) {
+  if (total === 0) return "";
+  if (state.menuNames.length === 1) return "🍱 Menu Hari Ini";
+
+  const count = Number(state.stats[menu] || 0);
+  if (count !== maxCount) return "";
+  return winners.length > 1 ? "⚖ Sama Populer" : "🔥 Favorit Hari Ini";
+}
+
+function renderStats() {
+  if (state.menuNames.length === 0) {
+    globalStats.innerHTML = "";
+    emptyState.style.display = "block";
     return;
   }
 
-  state.anakList.push({ nama: "", menu: "", catatan: "", addons: [] });
-  renderAnakList();
-});
+  const counts = state.menuNames.map((menu) => Number(state.stats[menu] || 0));
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  const maxCount = Math.max(...counts);
+  const winners = state.menuNames.filter(
+    (menu) => Number(state.stats[menu] || 0) === maxCount
+  );
 
-renderAnakList();
+  emptyState.style.display = total === 0 ? "block" : "none";
+
+  globalStats.innerHTML = state.menuNames
+    .map((menu, index) => {
+      const badge = getBadgeText(menu, total, maxCount, winners);
+      return `
+        <div class="menu-card static">
+          ${badge ? `<div class="badge">${badge}</div>` : ""}
+          <div class="emoji">${menuEmoji(index)}</div>
+          <h3>${escapeHtml(menu)}</h3>
+          <div class="menu-count">
+            👥 <span>${Number(state.stats[menu] || 0)}</span> orang memilih
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function loadStats() {
+  try {
+    const response = await fetch("/api/stats");
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || "Gagal mengambil statistik");
+    }
+
+    state.stats = data.perMenu || {};
+    renderStats();
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function loadConfig() {
+  try {
+    const response = await fetch("/api/config");
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || "Gagal mengambil konfigurasi");
+    }
+
+    const nextMenus = Array.isArray(data.menus)
+      ? data.menus.filter((menu) => typeof menu === "string" && menu.trim())
+      : [];
+    const nextAddons = Array.isArray(data.addons) ? data.addons : [];
+    const menusChanged = !arraysEqual(state.menuNames, nextMenus);
+    const addonsChanged = !arraysEqual(state.addonsMaster, nextAddons);
+
+    state.configLoaded = true;
+    state.openTime = data.config?.["Open Time"] || "";
+    state.closeTime = data.config?.["Close Time"] || "";
+
+    if (menusChanged) {
+      state.menuNames = nextMenus;
+
+      if (!state.menuNames.includes(state.selectedMenu)) {
+        state.selectedMenu = "";
+      }
+
+      renderMenuPilihan();
+      renderStats();
+    }
+
+    if (addonsChanged) {
+      state.addonsMaster = nextAddons;
+      const activeNames = new Set(nextAddons.map((addon) => addon.nama));
+      state.selectedAddons = state.selectedAddons.filter((nama) =>
+        activeNames.has(nama)
+      );
+      renderAddons();
+    }
+
+    checkOrderingTime();
+  } catch (error) {
+    console.error(error);
+
+    if (!state.configLoaded) {
+      statusOrder.textContent = "⚠ Gagal memuat menu. Silakan refresh halaman.";
+      tombolKirim.disabled = true;
+      btnText.textContent = "Menu Tidak Tersedia";
+    }
+  }
+}
 
 // =====================================
-// VALIDATION
+// VALIDASI & SUBMIT
 // =====================================
 
 function validateForm() {
-  for (let i = 0; i < state.anakList.length; i++) {
-    const anak = state.anakList[i];
+  const namesSeen = new Set();
 
-    if (anak.nama.trim() === "") {
-      showToast(`⚠ Nama anak ke-${i + 1} wajib diisi`, "warning");
+  for (let index = 0; index < state.namaAnak.length; index++) {
+    const nama = state.namaAnak[index].trim();
+
+    if (!nama) {
+      showToast(`⚠ Nama anak ke-${index + 1} wajib diisi`, "warning");
       return false;
     }
 
-    if (anak.menu === "") {
-      showToast(`⚠ Pilih menu buat anak ke-${i + 1}`, "warning");
+    const normalized = nama.toLocaleLowerCase("id-ID");
+    if (namesSeen.has(normalized)) {
+      showToast(`⚠ Nama ${nama} ditulis lebih dari sekali`, "warning");
       return false;
     }
+
+    namesSeen.add(normalized);
+  }
+
+  if (!state.selectedMenu || !state.menuNames.includes(state.selectedMenu)) {
+    showToast("⚠ Pilih satu menu untuk semua anak", "warning");
+    return false;
   }
 
   return true;
 }
 
-// =====================================
-// EVENTS
-// =====================================
-
-tombolKirim.addEventListener("click", handleSubmit);
-
-tutupModal.addEventListener("click", () => {
-  modal.classList.remove("show");
-  resetForm();
-});
-
-// =====================================
-// SUBMIT HANDLER
-// =====================================
-
 async function handleSubmit() {
-  if (tombolKirim.disabled) {
-    showToast("⏳ Tunggu sebentar...", "warning");
-    return;
-  }
-
-  if (state.sedangMengirim) return;
+  if (tombolKirim.disabled || state.sedangMengirim) return;
+  if (!validateForm()) return;
 
   state.sedangMengirim = true;
   setLoading(true);
   startLoading();
 
-  if (!validateForm()) {
-    state.sedangMengirim = false;
-    setLoading(false);
-    stopLoading();
-    return;
-  }
-
-  const orders = state.anakList.map((anak) => ({
-    nama: anak.nama.trim(),
-    menu: anak.menu,
-    catatan: anak.catatan.trim(),
-    addons: anak.addons,
+  const sharedNote = catatanInput.value.trim();
+  const orders = state.namaAnak.map((nama) => ({
+    nama: nama.trim(),
+    menu: state.selectedMenu,
+    catatan: sharedNote,
+    addons: [...state.selectedAddons],
   }));
 
   try {
@@ -352,13 +491,13 @@ async function handleSubmit() {
 
     const result = await response.json();
 
-    if (!result.success) {
-      showToast(`⚠ ${result.message}`, "warning");
+    if (!response.ok || !result.success) {
+      showToast(`⚠ ${result.message || "Pesanan gagal dikirim"}`, "warning");
       return;
     }
 
     showSuccessModal(result.orders || orders);
-    loadStats();
+    await loadStats();
   } catch (error) {
     console.error(error);
 
@@ -375,91 +514,15 @@ async function handleSubmit() {
   }
 }
 
-// =====================================
-// STATS (live counter)
-// =====================================
+tombolKirim.addEventListener("click", handleSubmit);
 
-async function loadStats() {
-  try {
-    const response = await fetch("/api/stats");
-    const data = await response.json();
-
-    const ayam = data.ayam ?? 0;
-    const ikan = data.ikan ?? 0;
-
-    animateNumber(ayamCount, Number(ayamCount.textContent), ayam);
-    animateNumber(ikanCount, Number(ikanCount.textContent), ikan);
-
-    emptyState.style.display = ayam + ikan === 0 ? "block" : "none";
-
-    updateBadges(ayam, ikan);
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-function updateBadges(ayam, ikan) {
-  if (ayam > ikan) {
-    badge1.textContent = "🔥 Favorit Hari Ini";
-    badge2.textContent = "";
-  } else if (ikan > ayam) {
-    badge2.textContent = "🔥 Favorit Hari Ini";
-    badge1.textContent = "";
-  } else {
-    badge1.textContent = "⚖ Sama Populer";
-    badge2.textContent = "⚖ Sama Populer";
-  }
-}
+tutupModal.addEventListener("click", () => {
+  modal.classList.remove("show");
+  resetForm();
+});
 
 // =====================================
-// CONFIG (menu, jam buka/tutup, add-ons)
-// =====================================
-
-async function loadConfig() {
-  try {
-    const response = await fetch("/api/config");
-    const data = await response.json();
-
-    menuTitle1.textContent = data.config["Menu 1"];
-    menuTitle2.textContent = data.config["Menu 2"];
-
-    state.menuNames = [data.config["Menu 1"], data.config["Menu 2"]];
-    state.openTime = data.config["Open Time"];
-    state.closeTime = data.config["Close Time"] || state.closeTime;
-    state.addonsMaster = data.addons || [];
-
-    renderAnakList();
-    checkOrderingTime();
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-// =====================================
-// ANIMATION HELPER
-// =====================================
-
-function animateNumber(element, start, end) {
-  if (start === end) return;
-
-  const duration = 500;
-  const startTime = performance.now();
-
-  function update(now) {
-    const progress = Math.min((now - startTime) / duration, 1);
-    const value = Math.floor(start + (end - start) * progress);
-    element.textContent = value;
-
-    if (progress < 1) {
-      requestAnimationFrame(update);
-    }
-  }
-
-  requestAnimationFrame(update);
-}
-
-// =====================================
-// DATE & ORDER WINDOW
+// TANGGAL & JAM PEMESANAN
 // =====================================
 
 function updateTanggal() {
@@ -484,30 +547,56 @@ function hideClosedModal() {
 }
 
 function checkOrderingTime() {
-  if (!state.openTime || !state.closeTime) return;
+  if (state.sedangMengirim) return;
+
+  if (!state.configLoaded) {
+    tombolKirim.disabled = true;
+    btnText.textContent = "Memuat Menu...";
+    return;
+  }
+
+  if (state.menuNames.length === 0) {
+    statusOrder.textContent = "⚠ Menu belum tersedia";
+    tombolKirim.disabled = true;
+    btnText.textContent = "Menu Tidak Tersedia";
+    return;
+  }
+
+  if (!state.openTime || !state.closeTime) {
+    statusOrder.textContent = "🟢 Pemesanan Dibuka";
+    tombolKirim.disabled = false;
+    btnText.textContent = "Kirim Pilihan";
+    hideClosedModal();
+    return;
+  }
 
   const sekarang = new Date();
   const sekarangMenit = sekarang.getHours() * 60 + sekarang.getMinutes();
-
   const [openJam, openMenit] = state.openTime.split(":").map(Number);
   const [closeJam, closeMenit] = state.closeTime.split(":").map(Number);
-
   const openTotal = openJam * 60 + openMenit;
   const closeTotal = closeJam * 60 + closeMenit;
+
+  if (![openTotal, closeTotal].every(Number.isFinite)) {
+    statusOrder.textContent = "⚠ Format jam pemesanan tidak valid";
+    tombolKirim.disabled = true;
+    btnText.textContent = "Hubungi Admin";
+    return;
+  }
 
   if (sekarangMenit < openTotal) {
     statusOrder.textContent = `⏳ Dibuka pukul ${state.openTime}`;
     tombolKirim.disabled = true;
     btnText.textContent = "Belum Dibuka";
     showClosedModal(
-      "Pemesanan hari ini belum dibuka. Tapi jangan khawatir, kalau ada pertanyaan bisa langsung chat kami lewat WhatsApp di bawah ini 👇"
+      "Pemesanan hari ini belum dibuka. Kalau ada pertanyaan, langsung chat kami lewat WhatsApp di bawah ini 👇"
     );
   } else if (sekarangMenit >= closeTotal) {
     statusOrder.textContent = "🔴 Pemesanan Ditutup";
     tombolKirim.disabled = true;
     btnText.textContent = "Pemesanan Ditutup";
     showClosedModal(
-      "Yah, waktu pemesanan hari ini udah lewat. Tapi jangan khawatir, kalau ada kendala atau mau tanya, langsung aja chat kami lewat WhatsApp di bawah ini 👇"
+      "Waktu pemesanan hari ini sudah lewat. Kalau ada kendala, langsung chat kami lewat WhatsApp di bawah ini 👇"
     );
   } else {
     statusOrder.textContent = `🟢 Pemesanan Dibuka — tutup pukul ${state.closeTime}`;
@@ -530,46 +619,44 @@ function showToast(pesan, tipe) {
   if (tipe === "error") toast.style.background = "#dc2626";
 
   toast.classList.add("show");
-
-  setTimeout(() => {
-    toast.classList.remove("show");
-  }, 3000);
+  setTimeout(() => toast.classList.remove("show"), 3000);
 }
 
 function showSuccessModal(orders) {
   modalText.replaceChildren();
 
-  orders.forEach((order, i) => {
-    if (i > 0) {
+  orders.forEach((order, index) => {
+    if (index > 0) {
       modalText.append(document.createElement("br"), document.createElement("br"));
     }
 
     const namaEl = document.createElement("strong");
     namaEl.textContent = order.nama;
-
     const menuEl = document.createElement("b");
     menuEl.textContent = order.menu;
 
     modalText.append(namaEl, document.createElement("br"), "Menu: ", menuEl);
   });
 
-  const confirmText = orders.map((o) => `${o.nama} - ${o.menu}`).join("\n");
-
+  const confirmText = orders.map((order) => `${order.nama} - ${order.menu}`).join("\n");
   waConfirmBtn.href = `https://wa.me/?text=${encodeURIComponent(
     `✅ Pesanan DapurSya sudah masuk!\n${confirmText}`
   )}`;
-
   modal.classList.add("show");
 }
 
 function resetForm() {
-  state.anakList = [{ nama: "", menu: "", catatan: "", addons: [] }];
-  renderAnakList();
+  state.namaAnak = [""];
+  state.selectedMenu = "";
+  state.selectedAddons = [];
+  catatanInput.value = "";
+  renderNamaAnak();
+  renderMenuPilihan();
+  renderAddons();
 }
 
 function setLoading(isLoading) {
   tombolKirim.disabled = isLoading;
-
   btnText.innerHTML = isLoading
     ? `<span class="spinner"></span> Mengirim...`
     : "Kirim Pilihan";
@@ -578,14 +665,12 @@ function setLoading(isLoading) {
 function startLoading() {
   loadingBar.style.opacity = "1";
   loadingBar.style.width = "25%";
-
   setTimeout(() => (loadingBar.style.width = "65%"), 80);
   setTimeout(() => (loadingBar.style.width = "85%"), 250);
 }
 
 function stopLoading() {
   loadingBar.style.width = "100%";
-
   setTimeout(() => (loadingBar.style.opacity = "0"), 200);
   setTimeout(() => (loadingBar.style.width = "0%"), 500);
 }
@@ -594,10 +679,11 @@ function stopLoading() {
 // INIT
 // =====================================
 
+renderNamaAnak();
+renderMenuPilihan();
 updateTanggal();
-
-loadStats();
 loadConfig();
+loadStats();
 
 setInterval(loadStats, 5000);
 setInterval(loadConfig, 10000);

@@ -23,7 +23,6 @@ const ratelimit =
       })
     : null;
 
-const MENU_VALID_KEYS = ["Menu 1", "Menu 2"];
 const NAMA_MAX_LENGTH = 100;
 const CATATAN_MAX_LENGTH = 300;
 const MAX_ANAK_PER_SUBMIT = 10;
@@ -52,6 +51,49 @@ function parseTanggal(str) {
   };
 }
 
+function extractMenus(config) {
+  const menus = [];
+
+  for (let index = 1; ; index++) {
+    const menu = String(config[`Menu ${index}`] ?? "").trim();
+    if (!menu) break;
+    menus.push(menu);
+  }
+
+  return menus;
+}
+
+function getJakartaDateParts() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return {
+    day: Number(values.day),
+    month: Number(values.month),
+    year: Number(values.year),
+  };
+}
+
+function getJakartaTimeParts() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return {
+    hour: Number(values.hour),
+    minute: Number(values.minute),
+  };
+}
+
 // Cek apakah sekarang masih dalam jam buka pemesanan, baca dari
 // Sheet SETTING. Kalau setting belum diisi, biarkan lolos.
 async function isWithinOrderWindow(sheets) {
@@ -69,12 +111,12 @@ async function isWithinOrderWindow(sheets) {
 
   const openTime = config["Open Time"];
   const closeTime = config["Close Time"];
-  const menuValid = [config["Menu 1"], config["Menu 2"]].filter(Boolean);
+  const menuValid = extractMenus(config);
 
   if (!openTime || !closeTime) return { withinWindow: true, menuValid };
 
-  const now = new Date();
-  const nowTotal = now.getHours() * 60 + now.getMinutes();
+  const now = getJakartaTimeParts();
+  const nowTotal = now.hour * 60 + now.minute;
 
   const [openH, openM] = openTime.split(":").map(Number);
   const [closeH, closeM] = closeTime.split(":").map(Number);
@@ -97,7 +139,7 @@ async function getTodayNames(sheets) {
   });
 
   const rows = response.data.values || [];
-  const now = new Date();
+  const today = getJakartaDateParts();
 
   return rows
     .slice(1)
@@ -105,9 +147,9 @@ async function getTodayNames(sheets) {
       const parsed = parseTanggal(row[0]);
       return (
         parsed &&
-        parsed.day === now.getDate() &&
-        parsed.month === now.getMonth() + 1 &&
-        parsed.year === now.getFullYear()
+        parsed.day === today.day &&
+        parsed.month === today.month &&
+        parsed.year === today.year
       );
     })
     .map((row) => String(row[1] || "").trim().toLowerCase());
@@ -157,7 +199,11 @@ function validateOrder(order, menuValid) {
     return { error: `Nama "${nama}" terlalu panjang` };
   }
 
-  if (menuValid.length > 0 && !menuValid.includes(menu)) {
+  if (!menu) {
+    return { error: `Menu untuk "${nama}" wajib dipilih` };
+  }
+
+  if (!menuValid.includes(menu)) {
     return { error: `Menu untuk "${nama}" tidak valid, coba refresh halaman` };
   }
 
@@ -246,6 +292,13 @@ export default async function handler(req, res) {
       });
     }
 
+    if (menuValid.length === 0) {
+      return res.status(503).json({
+        success: false,
+        message: "Menu belum tersedia. Silakan hubungi admin.",
+      });
+    }
+
     const validatedOrders = [];
     const namesInThisSubmission = new Set();
 
@@ -278,7 +331,7 @@ export default async function handler(req, res) {
       order.addonsText = addonsText;
 
       return [
-        new Date().toLocaleString("id-ID"),
+        new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }),
         order.nama,
         order.menu,
         order.catatan,

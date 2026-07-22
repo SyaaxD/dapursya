@@ -5,6 +5,33 @@ const auth = new google.auth.GoogleAuth({
     scopes: ["https://www.googleapis.com/auth/spreadsheets"]
 });
 
+function parseTanggal(value) {
+    const match = String(value).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (!match) return null;
+
+    return {
+        day: Number(match[1]),
+        month: Number(match[2]),
+        year: Number(match[3]),
+    };
+}
+
+function getJakartaDateParts() {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Jakarta",
+        day: "numeric",
+        month: "numeric",
+        year: "numeric",
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+
+    return {
+        day: Number(values.day),
+        month: Number(values.month),
+        year: Number(values.year),
+    };
+}
+
 export default async function handler(req, res) {
 
     try {
@@ -21,18 +48,26 @@ export default async function handler(req, res) {
 
         const rows = response.data.values || [];
 
-        let ayam = 0;
-        let ikan = 0;
+        const today = getJakartaDateParts();
+        const perMenu = {};
 
         rows.slice(1).forEach(row => {
 
-            const menu = row[2];
+            const tanggal = parseTanggal(row[0]);
+            const menu = String(row[2] ?? "").trim();
+            const isToday =
+                tanggal &&
+                tanggal.day === today.day &&
+                tanggal.month === today.month &&
+                tanggal.year === today.year;
 
-            if (menu === "Ayam Teriyaki") ayam++;
-
-            if (menu === "Ikan Crispy") ikan++;
+            if (isToday && menu) {
+                perMenu[menu] = (perMenu[menu] || 0) + 1;
+            }
 
         });
+
+        const total = Object.values(perMenu).reduce((sum, count) => sum + count, 0);
 
         // Cache di edge Vercel selama 5 detik, dan boleh serve versi basi
         // sampai 15 detik sambil di-refresh di belakang layar. Ini bikin
@@ -44,11 +79,9 @@ export default async function handler(req, res) {
 
             success: true,
 
-            total: ayam + ikan,
+            total,
 
-            ayam,
-
-            ikan
+            perMenu
 
         });
 

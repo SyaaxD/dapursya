@@ -50,9 +50,16 @@ export default async function handler(req, res) {
 
     // Default: bulan & tahun berjalan. Bisa override lewat query
     // ?bulan=6&tahun=2026 buat lihat rekap bulan lain.
-    const now = new Date();
-    const targetMonth = Number(req.query.bulan) || now.getMonth() + 1;
-    const targetYear = Number(req.query.tahun) || now.getFullYear();
+    const jakartaParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Jakarta",
+      month: "numeric",
+      year: "numeric",
+    }).formatToParts(new Date());
+    const jakartaNow = Object.fromEntries(
+      jakartaParts.map((part) => [part.type, part.value])
+    );
+    const targetMonth = Number(req.query.bulan) || Number(jakartaNow.month);
+    const targetYear = Number(req.query.tahun) || Number(jakartaNow.year);
 
     const data = allData.filter((row) => {
       const parsed = parseTanggal(row.tanggal);
