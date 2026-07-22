@@ -3,9 +3,18 @@
 // =====================================
 
 const API_URL = "/api/submit";
+const WA_NUMBER = "6281389490706";
+const WA_MESSAGE = encodeURIComponent("Halo, saya mau tanya soal DapurSya");
 
 document.querySelector('#app').innerHTML = `
 <div id="loadingBar"></div>
+<a
+  id="waFloat"
+  class="wa-float"
+  href="https://wa.me/${WA_NUMBER}?text=${WA_MESSAGE}"
+  target="_blank"
+  rel="noopener"
+>💬 Chat Admin</a>
 <div class="container">
 
     <header>
@@ -18,42 +27,29 @@ document.querySelector('#app').innerHTML = `
 
         <div id="tanggal"></div>
         <div id="statusOrder"></div>
-        <div id="countdown"></div>
 
         <div id="emptyState" class="empty-state">
             Belum ada yang memilih menu hari ini 🍱
         </div>
 
-        <div class="form-group">
-            <label>Nama Anak & Kelas</label>
-            <input id="nama" type="text" placeholder="Contoh : Andi - 3B">
-        </div>
-
-        <div class="form-group">
-            <label>Pilih Menu</label>
-            <div class="menu-grid">
-                <div class="menu-card" data-menu="Ayam Teriyaki">
-                    <div class="badge" id="badge1"></div>
-                    <div class="emoji">🍗</div>
-                    <h3>Ayam Teriyaki</h3>
-                    <p>Nasi • Sayur • Buah</p>
-                    <div class="menu-count">👥 <span id="ayamCount">0</span> orang memilih</div>
-                </div>
-
-                <div class="menu-card" data-menu="Ikan Crispy">
-                    <div class="badge" id="badge2"></div>
-                    <div class="emoji">🐟</div>
-                    <h3>Ikan Crispy</h3>
-                    <p>Nasi • Sayur • Buah</p>
-                    <div class="menu-count">👥 <span id="ikanCount">0</span> orang memilih</div>
-                </div>
+        <div class="global-stats">
+            <div class="menu-card static">
+                <div class="badge" id="badge1"></div>
+                <div class="emoji">🍗</div>
+                <h3 id="menuTitle1">Ayam Teriyaki</h3>
+                <div class="menu-count">👥 <span id="ayamCount">0</span> orang memilih</div>
+            </div>
+            <div class="menu-card static">
+                <div class="badge" id="badge2"></div>
+                <div class="emoji">🐟</div>
+                <h3 id="menuTitle2">Ikan Crispy</h3>
+                <div class="menu-count">👥 <span id="ikanCount">0</span> orang memilih</div>
             </div>
         </div>
 
-        <div class="form-group">
-            <label>Catatan</label>
-            <textarea id="catatan" placeholder="Opsional..."></textarea>
-        </div>
+        <div id="anakContainer"></div>
+
+        <button type="button" id="tambahAnak" class="tambah-anak-btn">+ Tambah Anak</button>
 
         <button id="kirim">
             <span id="btnText">Kirim Pilihan</span>
@@ -67,7 +63,22 @@ document.querySelector('#app').innerHTML = `
             <div class="success-icon">🍱</div>
             <h2>Pesanan Berhasil!</h2>
             <p id="modalText"></p>
+            <a id="waConfirmBtn" class="wa-modal-btn" target="_blank" rel="noopener">📩 Simpan Bukti ke WA</a>
             <button id="tutupModal">Tutup</button>
+        </div>
+    </div>
+
+    <div id="closedModal" class="modal">
+        <div class="modal-content">
+            <div class="success-icon">🕒</div>
+            <h2>Belum Bisa Pesan</h2>
+            <p id="closedModalText"></p>
+            <a
+              class="wa-modal-btn"
+              href="https://wa.me/${WA_NUMBER}?text=${WA_MESSAGE}"
+              target="_blank"
+              rel="noopener"
+            >💬 Chat Admin</a>
         </div>
     </div>
 </div>
@@ -77,52 +88,209 @@ document.querySelector('#app').innerHTML = `
 // DOM ELEMENTS
 // =====================================
 
-const inputNama = document.getElementById("nama");
-const inputCatatan = document.getElementById("catatan");
 const tombolKirim = document.getElementById("kirim");
 const toast = document.getElementById("toast");
 const modal = document.getElementById("successModal");
 const modalText = document.getElementById("modalText");
+const waConfirmBtn = document.getElementById("waConfirmBtn");
 const tutupModal = document.getElementById("tutupModal");
-const menuCards = document.querySelectorAll(".menu-card");
+const loadingBar = document.getElementById("loadingBar");
 const ayamCount = document.getElementById("ayamCount");
 const ikanCount = document.getElementById("ikanCount");
-const loadingBar = document.getElementById("loadingBar");
-const menuTitle1 = document.querySelector('.menu-card:nth-child(1) h3');
-const menuTitle2 = document.querySelector('.menu-card:nth-child(2) h3');
-const countdown = document.getElementById("countdown");
+const menuTitle1 = document.getElementById("menuTitle1");
+const menuTitle2 = document.getElementById("menuTitle2");
 const statusOrder = document.getElementById("statusOrder");
 const tanggal = document.getElementById("tanggal");
 const badge1 = document.getElementById("badge1");
 const badge2 = document.getElementById("badge2");
 const btnText = document.getElementById("btnText");
 const emptyState = document.getElementById("emptyState");
+const anakContainer = document.getElementById("anakContainer");
+const tambahAnak = document.getElementById("tambahAnak");
+const closedModal = document.getElementById("closedModal");
+const closedModalText = document.getElementById("closedModalText");
 
 // =====================================
 // STATE
 // =====================================
 
 const state = {
-  menuTerpilih: "",
+  anakList: [{ nama: "", menu: "", catatan: "", addons: [] }],
+  menuNames: ["Ayam Teriyaki", "Ikan Crispy"],
+  addonsMaster: [],
   sedangMengirim: false,
   openTime: "",
   closeTime: "20:00", // fallback sebelum /api/config kebaca
 };
 
 // =====================================
+// RENDER ANAK BLOCKS
+// =====================================
+
+function renderAnakBlock(anak, i) {
+  const addonsHtml = state.addonsMaster.length
+    ? `
+      <div class="form-group">
+        <button type="button" class="addons-toggle anak-addons-toggle" data-index="${i}">
+          + Tambah Add-ons <span class="addons-toggle-icon">▾</span>
+        </button>
+        <div class="addons-panel anak-addons-panel" data-index="${i}">
+          ${state.addonsMaster
+            .map(
+              (addon, j) => `
+            <label class="addons-item">
+              <span class="addons-item-left">
+                <input type="checkbox" class="addons-checkbox anak-addons-checkbox" data-index="${i}" data-addon="${j}" ${
+                anak.addons.includes(addon.nama) ? "checked" : ""
+              }>
+                ${addon.nama}
+              </span>
+              <span class="addons-item-price">Rp${addon.harga.toLocaleString("id-ID")}</span>
+            </label>
+          `
+            )
+            .join("")}
+        </div>
+      </div>
+    `
+    : "";
+
+  return `
+    <div class="anak-block">
+      <div class="anak-block-header">
+        <span class="anak-block-title">Anak ${i + 1}</span>
+        ${
+          state.anakList.length > 1
+            ? `<button type="button" class="hapus-anak-btn" data-index="${i}">✕ Hapus</button>`
+            : ""
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="anakNama${i}">Nama Anak & Kelas</label>
+        <input id="anakNama${i}" class="anak-nama-input" data-index="${i}" type="text" placeholder="Contoh : Andi - 3B" autocomplete="off" value="${anak.nama}">
+      </div>
+
+      <div class="form-group">
+        <label>Pilih Menu</label>
+        <div class="menu-grid anak-menu-grid" data-index="${i}">
+          <div class="menu-card ${anak.menu === state.menuNames[0] ? "selected" : ""}" data-menu="${state.menuNames[0]}" data-index="${i}">
+            <div class="emoji">🍗</div>
+            <h3>${state.menuNames[0]}</h3>
+          </div>
+          <div class="menu-card ${anak.menu === state.menuNames[1] ? "selected" : ""}" data-menu="${state.menuNames[1]}" data-index="${i}">
+            <div class="emoji">🐟</div>
+            <h3>${state.menuNames[1]}</h3>
+          </div>
+        </div>
+      </div>
+
+      ${addonsHtml}
+
+      <div class="form-group">
+        <label for="anakCatatan${i}">Catatan</label>
+        <textarea id="anakCatatan${i}" class="anak-catatan-input" data-index="${i}" placeholder="Opsional...">${anak.catatan}</textarea>
+      </div>
+    </div>
+  `;
+}
+
+function renderAnakList() {
+  anakContainer.innerHTML = state.anakList
+    .map((anak, i) => renderAnakBlock(anak, i))
+    .join("");
+
+  attachAnakListeners();
+}
+
+function attachAnakListeners() {
+  anakContainer.querySelectorAll(".anak-nama-input").forEach((input) => {
+    input.addEventListener("input", () => {
+      state.anakList[Number(input.dataset.index)].nama = input.value;
+    });
+  });
+
+  anakContainer.querySelectorAll(".anak-catatan-input").forEach((textarea) => {
+    textarea.addEventListener("input", () => {
+      state.anakList[Number(textarea.dataset.index)].catatan = textarea.value;
+    });
+  });
+
+  anakContainer.querySelectorAll(".anak-menu-grid .menu-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const i = Number(card.dataset.index);
+      state.anakList[i].menu = card.dataset.menu;
+
+      anakContainer
+        .querySelectorAll(`.anak-menu-grid[data-index="${i}"] .menu-card`)
+        .forEach((c) => c.classList.remove("selected"));
+
+      card.classList.add("selected");
+    });
+  });
+
+  anakContainer.querySelectorAll(".anak-addons-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = btn.dataset.index;
+      const panel = anakContainer.querySelector(`.anak-addons-panel[data-index="${i}"]`);
+      const icon = btn.querySelector(".addons-toggle-icon");
+      const isOpen = panel.classList.toggle("open");
+      icon.textContent = isOpen ? "▴" : "▾";
+    });
+  });
+
+  anakContainer.querySelectorAll(".anak-addons-checkbox").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const i = Number(checkbox.dataset.index);
+      const addon = state.addonsMaster[Number(checkbox.dataset.addon)];
+
+      if (checkbox.checked) {
+        state.anakList[i].addons.push(addon.nama);
+      } else {
+        state.anakList[i].addons = state.anakList[i].addons.filter(
+          (nama) => nama !== addon.nama
+        );
+      }
+    });
+  });
+
+  anakContainer.querySelectorAll(".hapus-anak-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.anakList.splice(Number(btn.dataset.index), 1);
+      renderAnakList();
+    });
+  });
+}
+
+tambahAnak.addEventListener("click", () => {
+  if (state.anakList.length >= 10) {
+    showToast("⚠ Maksimal 10 anak per pengiriman", "warning");
+    return;
+  }
+
+  state.anakList.push({ nama: "", menu: "", catatan: "", addons: [] });
+  renderAnakList();
+});
+
+renderAnakList();
+
+// =====================================
 // VALIDATION
 // =====================================
 
 function validateForm() {
-  if (inputNama.value.trim() === "") {
-    showToast("⚠ Nama anak wajib diisi", "warning");
-    inputNama.focus();
-    return false;
-  }
+  for (let i = 0; i < state.anakList.length; i++) {
+    const anak = state.anakList[i];
 
-  if (state.menuTerpilih === "") {
-    showToast("⚠ Pilih salah satu menu", "warning");
-    return false;
+    if (anak.nama.trim() === "") {
+      showToast(`⚠ Nama anak ke-${i + 1} wajib diisi`, "warning");
+      return false;
+    }
+
+    if (anak.menu === "") {
+      showToast(`⚠ Pilih menu buat anak ke-${i + 1}`, "warning");
+      return false;
+    }
   }
 
   return true;
@@ -133,14 +301,6 @@ function validateForm() {
 // =====================================
 
 tombolKirim.addEventListener("click", handleSubmit);
-
-menuCards.forEach((card) => {
-  card.addEventListener("click", () => {
-    menuCards.forEach((c) => c.classList.remove("selected"));
-    card.classList.add("selected");
-    state.menuTerpilih = card.dataset.menu;
-  });
-});
 
 tutupModal.addEventListener("click", () => {
   modal.classList.remove("show");
@@ -170,38 +330,48 @@ async function handleSubmit() {
     return;
   }
 
-  const nama = inputNama.value.trim();
-  const catatan = inputCatatan.value.trim();
-
-  const data = {
-    nama,
-    menu: state.menuTerpilih,
-    catatan,
-  };
+  const orders = state.anakList.map((anak) => ({
+    nama: anak.nama.trim(),
+    menu: anak.menu,
+    catatan: anak.catatan.trim(),
+    addons: anak.addons,
+  }));
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ orders }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const result = await response.json();
 
     if (!result.success) {
-      throw new Error(result.message || "Gagal mengirim data");
+      showToast(`⚠ ${result.message}`, "warning");
+      return;
     }
 
-    showSuccessModal(nama, state.menuTerpilih);
+    showSuccessModal(result.orders || orders);
     loadStats();
   } catch (error) {
     console.error(error);
-    showToast("❌ Terjadi kesalahan", "error");
+
+    if (error.name === "AbortError") {
+      showToast("❌ Koneksi lambat, coba lagi ya", "error");
+    } else {
+      showToast("❌ Gagal terhubung ke server, coba lagi", "error");
+    }
   } finally {
     state.sedangMengirim = false;
     setLoading(false);
     stopLoading();
-    checkOrderingTime(); // re-sync tombol kalau jam tutup lewat pas lagi kirim
+    checkOrderingTime();
   }
 }
 
@@ -242,7 +412,7 @@ function updateBadges(ayam, ikan) {
 }
 
 // =====================================
-// CONFIG (menu & jam buka/tutup dari Sheet)
+// CONFIG (menu, jam buka/tutup, add-ons)
 // =====================================
 
 async function loadConfig() {
@@ -253,12 +423,12 @@ async function loadConfig() {
     menuTitle1.textContent = data.config["Menu 1"];
     menuTitle2.textContent = data.config["Menu 2"];
 
+    state.menuNames = [data.config["Menu 1"], data.config["Menu 2"]];
     state.openTime = data.config["Open Time"];
     state.closeTime = data.config["Close Time"] || state.closeTime;
+    state.addonsMaster = data.addons || [];
 
-    menuCards[0].dataset.menu = data.config["Menu 1"];
-    menuCards[1].dataset.menu = data.config["Menu 2"];
-
+    renderAnakList();
     checkOrderingTime();
   } catch (error) {
     console.error(error);
@@ -289,7 +459,7 @@ function animateNumber(element, start, end) {
 }
 
 // =====================================
-// DATE & COUNTDOWN
+// DATE & ORDER WINDOW
 // =====================================
 
 function updateTanggal() {
@@ -304,25 +474,13 @@ function updateTanggal() {
   });
 }
 
-function updateCountdown() {
-  const [jam, menit] = state.closeTime.split(":").map(Number);
+function showClosedModal(pesan) {
+  closedModalText.textContent = pesan;
+  closedModal.classList.add("show");
+}
 
-  const sekarang = new Date();
-  const tutup = new Date();
-  tutup.setHours(jam, menit, 0, 0);
-
-  const selisih = tutup - sekarang;
-
-  if (selisih <= 0) {
-    countdown.textContent = "🔴 Pemesanan sudah ditutup";
-    return;
-  }
-
-  const h = Math.floor(selisih / 1000 / 60 / 60);
-  const m = Math.floor((selisih / 1000 / 60) % 60);
-  const s = Math.floor((selisih / 1000) % 60);
-
-  countdown.textContent = `⏰ Ditutup dalam ${h}j ${m}m ${s}d`;
+function hideClosedModal() {
+  closedModal.classList.remove("show");
 }
 
 function checkOrderingTime() {
@@ -341,14 +499,21 @@ function checkOrderingTime() {
     statusOrder.textContent = `⏳ Dibuka pukul ${state.openTime}`;
     tombolKirim.disabled = true;
     btnText.textContent = "Belum Dibuka";
+    showClosedModal(
+      "Pemesanan hari ini belum dibuka. Tapi jangan khawatir, kalau ada pertanyaan bisa langsung chat kami lewat WhatsApp di bawah ini 👇"
+    );
   } else if (sekarangMenit >= closeTotal) {
     statusOrder.textContent = "🔴 Pemesanan Ditutup";
     tombolKirim.disabled = true;
     btnText.textContent = "Pemesanan Ditutup";
+    showClosedModal(
+      "Yah, waktu pemesanan hari ini udah lewat. Tapi jangan khawatir, kalau ada kendala atau mau tanya, langsung aja chat kami lewat WhatsApp di bawah ini 👇"
+    );
   } else {
-    statusOrder.textContent = "🟢 Pemesanan Dibuka";
+    statusOrder.textContent = `🟢 Pemesanan Dibuka — tutup pukul ${state.closeTime}`;
     tombolKirim.disabled = false;
     btnText.textContent = "Kirim Pilihan";
+    hideClosedModal();
   }
 }
 
@@ -371,35 +536,35 @@ function showToast(pesan, tipe) {
   }, 3000);
 }
 
-function showSuccessModal(nama, menu) {
+function showSuccessModal(orders) {
   modalText.replaceChildren();
 
-  const namaEl = document.createElement("strong");
-  namaEl.textContent = nama;
+  orders.forEach((order, i) => {
+    if (i > 0) {
+      modalText.append(document.createElement("br"), document.createElement("br"));
+    }
 
-  const menuEl = document.createElement("b");
-  menuEl.textContent = menu;
+    const namaEl = document.createElement("strong");
+    namaEl.textContent = order.nama;
 
-  modalText.append(
-    namaEl,
-    document.createElement("br"),
-    document.createElement("br"),
-    "Menu yang dipilih:",
-    document.createElement("br"),
-    menuEl
-  );
+    const menuEl = document.createElement("b");
+    menuEl.textContent = order.menu;
+
+    modalText.append(namaEl, document.createElement("br"), "Menu: ", menuEl);
+  });
+
+  const confirmText = orders.map((o) => `${o.nama} - ${o.menu}`).join("\n");
+
+  waConfirmBtn.href = `https://wa.me/?text=${encodeURIComponent(
+    `✅ Pesanan DapurSya sudah masuk!\n${confirmText}`
+  )}`;
 
   modal.classList.add("show");
 }
 
 function resetForm() {
-  inputNama.value = "";
-  inputCatatan.value = "";
-  state.menuTerpilih = "";
-
-  menuCards.forEach((card) => card.classList.remove("selected"));
-
-  inputNama.focus();
+  state.anakList = [{ nama: "", menu: "", catatan: "", addons: [] }];
+  renderAnakList();
 }
 
 function setLoading(isLoading) {
@@ -412,10 +577,10 @@ function setLoading(isLoading) {
 
 function startLoading() {
   loadingBar.style.opacity = "1";
-  loadingBar.style.width = "15%";
+  loadingBar.style.width = "25%";
 
-  setTimeout(() => (loadingBar.style.width = "55%"), 150);
-  setTimeout(() => (loadingBar.style.width = "80%"), 500);
+  setTimeout(() => (loadingBar.style.width = "65%"), 80);
+  setTimeout(() => (loadingBar.style.width = "85%"), 250);
 }
 
 function stopLoading() {
@@ -430,11 +595,10 @@ function stopLoading() {
 // =====================================
 
 updateTanggal();
-updateCountdown();
 
 loadStats();
 loadConfig();
 
 setInterval(loadStats, 5000);
-setInterval(updateCountdown, 1000);
 setInterval(loadConfig, 10000);
+setInterval(checkOrderingTime, 1000);

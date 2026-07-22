@@ -23,7 +23,7 @@ body{
     width:100%;
     max-width:1100px;
     margin:auto;
-    padding:40px 20px;
+    padding:clamp(20px, 6vw, 40px) clamp(12px, 4vw, 20px);
     opacity:0;
 
     transform:translateY(25px);
@@ -61,8 +61,8 @@ header::after{
 
 header h1{
 
-    font-size:58px;
-    letter-spacing:-2px;
+    font-size:clamp(34px, 9vw, 58px);
+    letter-spacing:-1px;
 
 }
 
@@ -85,7 +85,7 @@ header p{
     backdrop-filter:blur(20px);
     border:1px solid rgba(255,255,255,.06);
     border-radius:26px;
-    padding:38px;
+    padding:clamp(22px, 6vw, 38px);
     box-shadow:0 25px 80px rgba(0,0,0,.35);
     transition:.35s;
     animation:fadeUp .6s ease;
@@ -93,7 +93,7 @@ header p{
 }
 
 .card h2{
-    font-size:32px;
+    font-size:clamp(24px, 6vw, 32px);
     margin-bottom:10px;
 }
 
@@ -583,6 +583,8 @@ button:disabled{
 
 .badge{
 
+    align-self:flex-start;
+
     display:inline-block;
 
     min-height:24px;
@@ -650,6 +652,464 @@ button:disabled{
     color:#94a3b8;
 
     text-align:center;
+
+}
+
+/* ===========================
+   Admin Page
+=========================== */
+
+.admin-error{
+
+    color:#f87171;
+
+    margin-top:12px;
+
+    display:none;
+
+}
+
+.admin-error.show{
+
+    display:block;
+
+}
+
+.admin-data-card{
+
+    display:none;
+
+    max-width:700px;
+
+}
+
+.admin-data-card.show{
+
+    display:block;
+
+}
+
+.admin-period{
+
+    color:#94a3b8;
+
+    margin-bottom:16px;
+
+}
+
+.admin-subheading{
+
+    margin-top:30px;
+
+    font-size:22px;
+
+}
+
+.admin-scroll-table{
+
+    max-height:400px;
+
+    overflow-y:auto;
+
+    border-radius:12px;
+
+}
+
+.admin-logout-btn{
+
+    margin-top:20px;
+
+    background:#374151;
+
+}
+
+.admin-logout-btn:hover{
+
+    background:#4b5563;
+
+}
+
+.admin-table{
+
+    width:100%;
+
+    border-collapse:collapse;
+
+}
+
+.admin-table th{
+
+    text-align:left;
+
+    padding:10px 8px;
+
+    border-bottom:2px solid #22c55e;
+
+    color:#4ade80;
+
+}
+
+.admin-table td{
+
+    padding:8px;
+
+    border-bottom:1px solid rgba(255,255,255,.08);
+
+}
+
+.admin-table-num{
+
+    text-align:right;
+
+}
+
+.admin-table-small{
+
+    font-size:14px;
+
+}
+
+/* ===========================
+   WhatsApp Float Button
+=========================== */
+
+.wa-float{
+
+    position:fixed;
+
+    right:20px;
+    bottom:20px;
+
+    background:#25D366;
+
+    color:white;
+
+    padding:14px 20px;
+
+    border-radius:999px;
+
+    font-weight:700;
+
+    font-size:14px;
+
+    text-decoration:none;
+
+    box-shadow:0 15px 35px rgba(37,211,102,.4);
+
+    z-index:998;
+
+    transition:.25s;
+
+    display:inline-flex;
+
+    align-items:center;
+
+    gap:6px;
+
+}
+
+.wa-float:hover{
+
+    transform:translateY(-3px);
+
+    box-shadow:0 20px 45px rgba(37,211,102,.5);
+
+}
+
+@media (max-width:480px){
+
+    .wa-float{
+
+        right:14px;
+        bottom:14px;
+        padding:12px 16px;
+        font-size:13px;
+
+    }
+
+}
+
+/* ===========================
+   Add-ons Accordion
+=========================== */
+
+.addons-toggle{
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    width:100%;
+
+    padding:14px 18px;
+
+    margin-top:0;
+
+    background:#0d1728;
+
+    border:2px solid transparent;
+
+    border-radius:16px;
+
+    color:white;
+
+    font-size:15px;
+
+    font-weight:600;
+
+    cursor:pointer;
+
+    box-shadow:none;
+
+    transition:.25s;
+
+}
+
+.addons-toggle:hover{
+
+    border-color:rgba(34,197,94,.3);
+
+    transform:none;
+
+    box-shadow:none;
+
+}
+
+.addons-panel{
+
+    max-height:0;
+
+    overflow:hidden;
+
+    transition:max-height .3s ease;
+
+}
+
+.addons-panel.open{
+
+    max-height:400px;
+
+    margin-top:10px;
+
+}
+
+.addons-item{
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    padding:12px 16px;
+
+    background:#0d1728;
+
+    border-radius:14px;
+
+    margin-bottom:8px;
+
+    cursor:pointer;
+
+    font-size:15px;
+
+}
+
+.addons-item-left{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:10px;
+
+}
+
+.addons-checkbox{
+
+    width:18px;
+
+    height:18px;
+
+    accent-color:#22c55e;
+
+}
+
+.addons-item-price{
+
+    color:#4ade80;
+
+    font-weight:700;
+
+}
+
+.wa-modal-btn{
+
+    display:block;
+
+    margin-top:20px;
+
+    padding:14px;
+
+    background:#25D366;
+
+    color:white;
+
+    text-decoration:none;
+
+    border-radius:16px;
+
+    font-weight:700;
+
+}
+
+/* ===========================
+   Global Stats (non-clickable display)
+=========================== */
+
+.global-stats{
+
+    display:grid;
+
+    gap:16px;
+
+    margin-top:16px;
+
+}
+
+.menu-card.static{
+
+    cursor:default;
+
+}
+
+.menu-card.static:hover{
+
+    transform:none;
+
+}
+
+/* ===========================
+   Multi-Anak Blocks
+=========================== */
+
+.anak-block{
+
+    margin-top:26px;
+
+    padding-top:22px;
+
+    border-top:1px solid rgba(255,255,255,.1);
+
+}
+
+.anak-block:first-child{
+
+    margin-top:20px;
+
+    padding-top:0;
+
+    border-top:none;
+
+}
+
+.anak-block-header{
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    margin-bottom:6px;
+
+}
+
+.anak-block-title{
+
+    font-weight:700;
+
+    color:#4ade80;
+
+    font-size:15px;
+
+}
+
+.hapus-anak-btn{
+
+    background:none;
+
+    border:none;
+
+    color:#f87171;
+
+    font-size:13px;
+
+    font-weight:600;
+
+    cursor:pointer;
+
+    padding:4px 8px;
+
+    width:auto;
+
+    margin-top:0;
+
+    box-shadow:none;
+
+}
+
+.hapus-anak-btn:hover{
+
+    text-decoration:underline;
+
+    transform:none;
+
+    box-shadow:none;
+
+    background:none;
+
+}
+
+.tambah-anak-btn{
+
+    width:100%;
+
+    padding:14px;
+
+    margin-top:20px;
+
+    background:transparent;
+
+    border:2px dashed rgba(74,222,128,.4);
+
+    border-radius:16px;
+
+    color:#4ade80;
+
+    font-weight:700;
+
+    font-size:15px;
+
+    cursor:pointer;
+
+    transition:.25s;
+
+    box-shadow:none;
+
+}
+
+.tambah-anak-btn:hover{
+
+    background:rgba(34,197,94,.08);
+
+    border-color:#4ade80;
+
+    transform:none;
+
+    box-shadow:none;
 
 }
 

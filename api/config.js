@@ -14,33 +14,53 @@ export default async function handler(req, res) {
             auth
         });
 
-        const response = await sheets.spreadsheets.values.get({
+        const settingResponse = await sheets.spreadsheets.values.get({
             spreadsheetId: process.env.SPREADSHEET_ID,
             range: "SETTING!A:B"
         });
 
-        const rows = response.data.values || [];
+        const settingRows = settingResponse.data.values || [];
 
         const config = {};
 
-        rows.forEach(row => {
-
-            const key = row[0];
-            const value = row[1];
-
-            config[key] = value;
-
+        settingRows.forEach(row => {
+            config[row[0]] = row[1];
         });
 
-        // Config jarang berubah (biasanya cuma kamu edit manual di Sheet),
-        // jadi cache-nya bisa lebih lama dari stats.
+        // ADDONS sheet sifatnya opsional -- kalau belum dibikin,
+        // jangan sampai nge-break seluruh /api/config.
+        let addons = [];
+
+        try {
+
+            const addonsResponse = await sheets.spreadsheets.values.get({
+                spreadsheetId: process.env.SPREADSHEET_ID,
+                range: "ADDONS!A:C",
+            });
+
+            const addonsRows = addonsResponse.data.values || [];
+
+            addons = addonsRows
+                .slice(1) // baris pertama header: Nama | Harga | Aktif
+                .filter(row => row[0] && row[2] === "Ya")
+                .map(row => ({
+                    nama: row[0],
+                    harga: Number(row[1]) || 0,
+                }));
+
+        } catch (addonErr) {
+            addons = [];
+        }
+
         res.setHeader("Cache-Control", "s-maxage=10, stale-while-revalidate=30");
 
         res.status(200).json({
 
             success: true,
 
-            config
+            config,
+
+            addons
 
         });
 
