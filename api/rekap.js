@@ -20,14 +20,26 @@ const ratelimit =
 // Kolom A disimpan pakai new Date().toLocaleString("id-ID") di submit.js,
 // formatnya kira-kira "20/7/2026 08.15.00" -> ambil tgl/bln/thn dari situ.
 function parseTanggal(str) {
-  const match = String(str).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const value = String(str || "").trim();
+  const localMatch = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
 
-  if (!match) return null;
+  if (localMatch) {
+    return {
+      day: Number(localMatch[1]),
+      month: Number(localMatch[2]),
+      year: Number(localMatch[3]),
+    };
+  }
+
+  // Tanggal kirim dari form disimpan dalam format YYYY-MM-DD.
+  const isoMatch = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+
+  if (!isoMatch) return null;
 
   return {
-    day: Number(match[1]),
-    month: Number(match[2]),
-    year: Number(match[3]),
+    day: Number(isoMatch[3]),
+    month: Number(isoMatch[2]),
+    year: Number(isoMatch[1]),
   };
 }
 
