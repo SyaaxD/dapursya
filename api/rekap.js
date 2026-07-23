@@ -50,6 +50,17 @@ function splitAddonLabels(value) {
     .filter(Boolean);
 }
 
+function toDateKey(value) {
+  const parsed = parseTanggal(value);
+  if (!parsed) return "";
+
+  return [
+    parsed.year,
+    String(parsed.month).padStart(2, "0"),
+    String(parsed.day).padStart(2, "0"),
+  ].join("-");
+}
+
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({
@@ -135,9 +146,10 @@ export default async function handler(req, res) {
     const rekapPerAnak = {};
     const rekapTambahanPerAnak = {};
     const rekapDetailPerAnak = {};
+    const rekapHarian = {};
     const rekapMenu = {};
 
-    data.forEach(({ nama, menu, addons, totalAddons }) => {
+    data.forEach(({ nama, menu, addons, totalAddons, serviceDate, tanggal }) => {
       if (!nama) return;
       rekapPerAnak[nama] = (rekapPerAnak[nama] || 0) + 1;
       rekapTambahanPerAnak[nama] = (rekapTambahanPerAnak[nama] || 0) + totalAddons;
@@ -162,6 +174,35 @@ export default async function handler(req, res) {
 
       for (const addon of splitAddonLabels(addons)) {
         childSummary.addons[addon] = (childSummary.addons[addon] || 0) + 1;
+      }
+
+      const dateValue = serviceDate || tanggal;
+      const dateKey = toDateKey(dateValue);
+
+      if (dateKey) {
+        if (!rekapHarian[dateKey]) {
+          rekapHarian[dateKey] = {
+            label: dateValue,
+            children: {},
+          };
+        }
+
+        if (!rekapHarian[dateKey].children[nama]) {
+          rekapHarian[dateKey].children[nama] = {
+            menus: {},
+            addons: {},
+          };
+        }
+
+        const dailyChild = rekapHarian[dateKey].children[nama];
+
+        if (menu) {
+          dailyChild.menus[menu] = (dailyChild.menus[menu] || 0) + 1;
+        }
+
+        for (const addon of splitAddonLabels(addons)) {
+          dailyChild.addons[addon] = (dailyChild.addons[addon] || 0) + 1;
+        }
       }
     });
 
@@ -195,6 +236,7 @@ export default async function handler(req, res) {
       rekapPerAnak,
       rekapTambahanPerAnak,
       rekapDetailPerAnak,
+      rekapHarian,
       rekapMenu,
       payments,
       paymentSummary,

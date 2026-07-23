@@ -839,12 +839,18 @@ button:disabled{
 
 .admin-payment-table{
 
-    max-height:620px;
-    overflow:auto;
+    margin-top:18px;
 
 }
 
-.admin-payment-table table{
+.admin-payment-day-table{
+
+    overflow:auto;
+    border-radius:0 0 14px 14px;
+
+}
+
+.admin-payment-day-table table{
 
     min-width:1260px;
 
@@ -891,6 +897,71 @@ button:disabled{
     border-radius:14px;
     color:#94a3b8;
     text-align:center;
+
+}
+
+.admin-day-group{
+
+    margin-bottom:12px;
+    border:1px solid rgba(255,255,255,.1);
+    border-radius:14px;
+    background:rgba(13,23,40,.62);
+    overflow:hidden;
+
+}
+
+.admin-day-group > summary{
+
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    padding:14px 16px;
+    color:#f8fafc;
+    font-weight:700;
+    cursor:pointer;
+    list-style:none;
+
+}
+
+.admin-day-group > summary::-webkit-details-marker{
+
+    display:none;
+
+}
+
+.admin-day-group > summary::after{
+
+    content:"▾";
+    color:#4ade80;
+    transition:transform .2s;
+
+}
+
+.admin-day-group[open] > summary::after{
+
+    transform:rotate(180deg);
+
+}
+
+.admin-day-group > summary small{
+
+    margin-left:auto;
+    color:#94a3b8;
+    font-weight:500;
+
+}
+
+.admin-day-group[open] > summary{
+
+    border-bottom:1px solid rgba(255,255,255,.1);
+    background:rgba(34,197,94,.06);
+
+}
+
+.admin-child-day{
+
+    margin-top:12px;
 
 }
 

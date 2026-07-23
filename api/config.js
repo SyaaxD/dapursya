@@ -6,11 +6,27 @@ const auth = new google.auth.GoogleAuth({
     scopes: ["https://www.googleapis.com/auth/spreadsheets"]
 });
 
+function normalizeConfigKey(value) {
+    return String(value ?? "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLocaleLowerCase("id-ID");
+}
+
+function getConfigValue(config, key) {
+    const normalizedKey = normalizeConfigKey(key);
+    const matchedEntry = Object.entries(config).find(
+        ([configKey]) => normalizeConfigKey(configKey) === normalizedKey
+    );
+
+    return matchedEntry?.[1];
+}
+
 function extractMenus(config) {
     const menus = [];
 
     for (let index = 1; ; index++) {
-        const menu = String(config[`Menu ${index}`] ?? "").trim();
+        const menu = String(getConfigValue(config, `Menu ${index}`) ?? "").trim();
         if (!menu) break;
         menus.push(menu);
     }
@@ -23,8 +39,8 @@ function extractMenuDetails(config, menus) {
         menus.map((menu, index) => {
             const number = index + 1;
             const detail = String(
-                config[`Side Dish ${number}`] ??
-                config[`Detail Menu ${number}`] ??
+                getConfigValue(config, `Side Dish ${number}`) ??
+                getConfigValue(config, `Detail Menu ${number}`) ??
                 ""
             ).trim();
 
@@ -65,8 +81,12 @@ export default async function handler(req, res) {
 
         const menus = extractMenus(config);
         const menuDetails = extractMenuDetails(config, menus);
+        const status = String(getConfigValue(config, "Status") ?? "BUKA").trim();
+        const message = String(getConfigValue(config, "Pesan Tutup") ?? "").trim();
+        const openTime = String(getConfigValue(config, "Open Time") ?? "").trim();
+        const closeTime = String(getConfigValue(config, "Close Time") ?? "").trim();
         const basePrice =
-            parseHarga(config["Harga Box"]) || BASE_BOX_PRICE_FALLBACK;
+            parseHarga(getConfigValue(config, "Harga Box")) || BASE_BOX_PRICE_FALLBACK;
 
         // ADDONS sheet sifatnya opsional -- kalau belum dibikin,
         // jangan sampai nge-break seluruh /api/config.
@@ -105,6 +125,14 @@ export default async function handler(req, res) {
             menus,
 
             menuDetails,
+
+            status,
+
+            message,
+
+            openTime,
+
+            closeTime,
 
             addons,
 

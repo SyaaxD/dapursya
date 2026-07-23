@@ -62,7 +62,7 @@ document.querySelector('#app').innerHTML = `
       </div>
 
       <div id="paymentSummary" class="payment-summary-grid"></div>
-      <div id="paymentTable" class="admin-scroll-table admin-payment-table"></div>
+      <div id="paymentTable" class="admin-payment-table"></div>
 
       <details class="admin-details">
         <summary>Ringkasan menu dan pesanan anak</summary>
@@ -177,6 +177,28 @@ function makeOptions(options, selected) {
     .join('')
 }
 
+function formatDateHeading(dateKey, fallback = '') {
+  if (!dateKey || dateKey === 'unknown') return fallback || 'Tanggal tidak tercatat'
+
+  const date = new Date(`${dateKey}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return fallback || dateKey
+
+  return date.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function sortDateGroups(entries) {
+  return entries.sort(([dateA], [dateB]) => {
+    if (dateA === 'unknown') return 1
+    if (dateB === 'unknown') return -1
+    return dateB.localeCompare(dateA)
+  })
+}
+
 function renderPayments(payments) {
   const selectedDate = dateFilter.value
   const filtered = [...payments]
@@ -192,24 +214,38 @@ function renderPayments(payments) {
     return
   }
 
-  paymentTable.innerHTML = `
-    <table class="admin-table admin-table-small">
-      <thead>
-        <tr>
-          <th>Tanggal</th>
-          <th>Pemesan</th>
-          <th>Anak & Menu</th>
-          <th class="admin-table-num">Tagihan</th>
-          <th>Status</th>
-          <th>Jumlah Dibayar</th>
-          <th>Metode</th>
-          <th>Catatan</th>
-          <th>Aksi</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filtered
-          .map((payment) => {
+  const groups = new Map()
+  filtered.forEach((payment) => {
+    const dateKey = toInputDate(payment.serviceDate || payment.orderedAt) || 'unknown'
+    if (!groups.has(dateKey)) groups.set(dateKey, [])
+    groups.get(dateKey).push(payment)
+  })
+
+  paymentTable.innerHTML = sortDateGroups([...groups.entries()])
+    .map(
+      ([dateKey, dailyPayments], groupIndex) => `
+        <details class="admin-day-group" ${groupIndex === 0 ? 'open' : ''}>
+          <summary>
+            <span>📅 ${escapeHtml(formatDateHeading(dateKey, dailyPayments[0]?.serviceDate))}</span>
+            <small>${dailyPayments.length} pesanan</small>
+          </summary>
+          <div class="admin-payment-day-table">
+            <table class="admin-table admin-table-small">
+              <thead>
+                <tr>
+                  <th>Pemesan</th>
+                  <th>Anak & Menu</th>
+                  <th class="admin-table-num">Tagihan</th>
+                  <th>Status</th>
+                  <th>Jumlah Dibayar</th>
+                  <th>Metode</th>
+                  <th>Catatan</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${dailyPayments
+                  .map((payment) => {
             const wa = normalizeWhatsapp(payment.whatsapp)
             const waLink = wa
               ? `<a class="admin-wa-link" href="https://wa.me/${wa}" target="_blank" rel="noopener">WA ${escapeHtml(payment.whatsapp)}</a>`
@@ -218,10 +254,6 @@ function renderPayments(payments) {
             return `
               <tr data-payment-row="${payment.rowNumber}" data-total="${payment.total}">
                 <td>
-                  ${escapeHtml(payment.serviceDate || payment.orderedAt)}
-                  <small class="admin-cell-sub">${escapeHtml(payment.orderId)}</small>
-                </td>
-                <td>
                   <strong>${escapeHtml(payment.customerName || 'Data lama')}</strong>
                   ${waLink}
                 </td>
@@ -229,6 +261,7 @@ function renderPayments(payments) {
                   <strong>${escapeHtml(payment.childName)}</strong>
                   <small class="admin-cell-sub">${escapeHtml(payment.menu)}</small>
                   ${payment.addons ? `<small class="admin-cell-sub">${escapeHtml(payment.addons)}</small>` : ''}
+                  <small class="admin-cell-sub">${escapeHtml(payment.orderId)}</small>
                 </td>
                 <td class="admin-table-num"><strong>${formatRupiah(payment.total)}</strong></td>
                 <td>
@@ -254,9 +287,13 @@ function renderPayments(payments) {
             `
           })
           .join('')}
-      </tbody>
-    </table>
-  `
+              </tbody>
+            </table>
+          </div>
+        </details>
+      `
+    )
+    .join('')
 
   paymentTable.querySelectorAll('.payment-status').forEach((select) => {
     select.addEventListener('change', () => {
@@ -333,42 +370,61 @@ function renderSupportingTables(result) {
     `
     : '<div class="admin-empty-state">Belum ada pesanan pada periode ini.</div>'
 
-  const entries = Object.entries(result.rekapDetailPerAnak || {}).sort(
-    ([nameA], [nameB]) => nameA.localeCompare(nameB, 'id')
+  const selectedDate = dateFilter.value
+  const dailyEntries = sortDateGroups(
+    Object.entries(result.rekapHarian || {}).filter(
+      ([dateKey]) => !selectedDate || dateKey === selectedDate
+    )
   )
 
-  summaryTable.innerHTML = entries.length
-    ? `
-      <table class="admin-table admin-child-summary">
-        <tr>
-          <th>Nama Anak</th>
-          <th>Menu dan Add-on yang Dipilih</th>
-        </tr>
-        ${entries
-          .map(([nama, detail]) => {
-            const menus = Object.keys(detail.menus || {})
-              .sort((a, b) => a.localeCompare(b, 'id'))
-              .map((menu) => escapeHtml(menu))
-              .join(' · ')
-            const addons = Object.keys(detail.addons || {})
-              .sort((a, b) => a.localeCompare(b, 'id'))
-              .map((addon) => escapeHtml(addon))
-              .join(' · ')
+  summaryTable.innerHTML = dailyEntries.length
+    ? dailyEntries
+        .map(([dateKey, daily], groupIndex) => {
+          const children = Object.entries(daily.children || {}).sort(
+            ([nameA], [nameB]) => nameA.localeCompare(nameB, 'id')
+          )
 
-            return `
-              <tr>
-                <td><strong>${escapeHtml(nama)}</strong></td>
-                <td>
-                  <span class="admin-order-detail">🍱 ${menus || 'Menu tidak tercatat'}</span>
-                  <span class="admin-order-detail admin-muted">＋ ${addons || 'Tanpa add-on'}</span>
-                </td>
-              </tr>
-            `
-          })
-          .join('')}
-      </table>
-    `
-    : '<div class="admin-empty-state">Belum ada pesanan anak pada periode ini.</div>'
+          return `
+            <details class="admin-day-group admin-child-day" ${groupIndex === 0 ? 'open' : ''}>
+              <summary>
+                <span>📅 ${escapeHtml(formatDateHeading(dateKey, daily.label))}</span>
+                <small>${children.length} anak</small>
+              </summary>
+              <div class="admin-scroll-table">
+                <table class="admin-table admin-child-summary">
+                  <tr>
+                    <th>Nama Anak</th>
+                    <th>Menu dan Add-on yang Dipilih</th>
+                  </tr>
+                  ${children
+                    .map(([nama, detail]) => {
+                      const menus = Object.keys(detail.menus || {})
+                        .sort((a, b) => a.localeCompare(b, 'id'))
+                        .map((menu) => escapeHtml(menu))
+                        .join(' · ')
+                      const addons = Object.keys(detail.addons || {})
+                        .sort((a, b) => a.localeCompare(b, 'id'))
+                        .map((addon) => escapeHtml(addon))
+                        .join(' · ')
+
+                      return `
+                        <tr>
+                          <td><strong>${escapeHtml(nama)}</strong></td>
+                          <td>
+                            <span class="admin-order-detail">🍱 ${menus || 'Menu tidak tercatat'}</span>
+                            <span class="admin-order-detail admin-muted">＋ ${addons || 'Tanpa add-on'}</span>
+                          </td>
+                        </tr>
+                      `
+                    })
+                    .join('')}
+                </table>
+              </div>
+            </details>
+          `
+        })
+        .join('')
+    : '<div class="admin-empty-state">Belum ada pesanan anak pada tanggal atau periode ini.</div>'
 }
 
 function renderData(result) {
@@ -419,7 +475,10 @@ refreshBtn.addEventListener('click', loadAdminData)
 monthFilter.addEventListener('change', loadAdminData)
 yearFilter.addEventListener('change', loadAdminData)
 dateFilter.addEventListener('change', () => {
-  if (currentResult) renderPayments(currentResult.payments || [])
+  if (currentResult) {
+    renderPayments(currentResult.payments || [])
+    renderSupportingTables(currentResult)
+  }
 })
 
 logoutBtn.addEventListener('click', () => {

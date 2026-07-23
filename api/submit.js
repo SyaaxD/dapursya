@@ -58,11 +58,27 @@ function parseTanggal(str) {
   };
 }
 
+function normalizeConfigKey(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("id-ID");
+}
+
+function getConfigValue(config, key) {
+  const normalizedKey = normalizeConfigKey(key);
+  const matchedEntry = Object.entries(config).find(
+    ([configKey]) => normalizeConfigKey(configKey) === normalizedKey
+  );
+
+  return matchedEntry?.[1];
+}
+
 function extractMenus(config) {
   const menus = [];
 
   for (let index = 1; ; index++) {
-    const menu = String(config[`Menu ${index}`] ?? "").trim();
+    const menu = String(getConfigValue(config, `Menu ${index}`) ?? "").trim();
     if (!menu) break;
     menus.push(menu);
   }
@@ -129,14 +145,16 @@ function formatDateParts({ day, month, year }) {
   ].join("/");
 }
 
-function getTomorrowJakartaDate() {
+function getJakartaDateWithOffset(offsetDays) {
   const today = getJakartaDateParts();
-  const tomorrow = new Date(Date.UTC(today.year, today.month - 1, today.day + 1));
+  const target = new Date(
+    Date.UTC(today.year, today.month - 1, today.day + offsetDays)
+  );
 
   return formatDateParts({
-    day: tomorrow.getUTCDate(),
-    month: tomorrow.getUTCMonth() + 1,
-    year: tomorrow.getUTCFullYear(),
+    day: target.getUTCDate(),
+    month: target.getUTCMonth() + 1,
+    year: target.getUTCFullYear(),
   });
 }
 
@@ -166,6 +184,28 @@ function getJakartaTimeParts() {
   };
 }
 
+function isClosedStatus(value) {
+  return ["tutup", "libur", "off", "closed"].includes(
+    String(value || "").trim().toLocaleLowerCase("id-ID")
+  );
+}
+
+function isMinuteWithinWindow(nowTotal, openTotal, closeTotal) {
+  if (openTotal === closeTotal) return true;
+  if (openTotal < closeTotal) {
+    return nowTotal >= openTotal && nowTotal < closeTotal;
+  }
+
+  // Jadwal melewati tengah malam, misalnya 18:00 sampai 12:00 esok hari.
+  return nowTotal >= openTotal || nowTotal < closeTotal;
+}
+
+function getServiceDateJakarta(nowTotal, openTotal, closeTotal) {
+  const isOvernightWindow = openTotal > closeTotal;
+  const isMorningPart = isOvernightWindow && nowTotal < closeTotal;
+  return getJakartaDateWithOffset(isMorningPart ? 0 : 1);
+}
+
 // Cek apakah sekarang masih dalam jam buka pemesanan, baca dari
 // Sheet SETTING. Kalau setting belum diisi, biarkan lolos.
 async function isWithinOrderWindow(sheets) {
@@ -181,15 +221,25 @@ async function isWithinOrderWindow(sheets) {
     config[row[0]] = row[1];
   });
 
-  const openTime = config["Open Time"];
-  const closeTime = config["Close Time"];
+  const openTime = String(getConfigValue(config, "Open Time") ?? "").trim();
+  const closeTime = String(getConfigValue(config, "Close Time") ?? "").trim();
+  const status = getConfigValue(config, "Status");
   const menuValid = extractMenus(config);
 
   const basePrice =
-    parseHarga(config["Harga Box"]) || BASE_BOX_PRICE_FALLBACK;
+    parseHarga(getConfigValue(config, "Harga Box")) || BASE_BOX_PRICE_FALLBACK;
+
+  if (isClosedStatus(status)) {
+    return { withinWindow: false, menuValid, basePrice, serviceDate: "" };
+  }
 
   if (!openTime || !closeTime) {
-    return { withinWindow: true, menuValid, basePrice };
+    return {
+      withinWindow: true,
+      menuValid,
+      basePrice,
+      serviceDate: getJakartaDateWithOffset(1),
+    };
   }
 
   const now = getJakartaTimeParts();
@@ -202,32 +252,40 @@ async function isWithinOrderWindow(sheets) {
   const closeTotal = closeH * 60 + closeM;
 
   return {
-    withinWindow: nowTotal >= openTotal && nowTotal < closeTotal,
+    withinWindow:
+      [openTotal, closeTotal].every(Number.isFinite) &&
+      isMinuteWithinWindow(nowTotal, openTotal, closeTotal),
     menuValid,
     basePrice,
+    serviceDate: [openTotal, closeTotal].every(Number.isFinite)
+      ? getServiceDateJakarta(nowTotal, openTotal, closeTotal)
+      : "",
   };
 }
 
-// Duplikat dihitung dari nomor WhatsApp + nama anak pada hari yang sama.
+// Duplikat dihitung dari nomor WhatsApp + nama anak untuk tanggal kirim yang sama.
 // Nama anak yang sama dari dua keluarga berbeda tetap bisa memesan.
-async function getTodayOrderKeys(sheets) {
+async function getOrderRows(sheets) {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.SPREADSHEET_ID,
-    range: "RESPON!A:I",
+    range: "RESPON!A:J",
   });
 
-  const rows = response.data.values || [];
-  const today = getJakartaDateParts();
+  return response.data.values || [];
+}
+
+function getOrderKeysForServiceDate(rows, serviceDate) {
+  const target = parseTanggal(serviceDate);
 
   return rows
     .slice(1)
     .filter((row) => {
-      const parsed = parseTanggal(row[0]);
+      const parsed = parseTanggal(row[9] || row[0]);
       return (
-        parsed &&
-        parsed.day === today.day &&
-        parsed.month === today.month &&
-        parsed.year === today.year
+        parsed && target &&
+        parsed.day === target.day &&
+        parsed.month === target.month &&
+        parsed.year === target.year
       );
     })
     .map((row) => {
@@ -375,11 +433,19 @@ export default async function handler(req, res) {
   try {
     const sheets = google.sheets({ version: "v4", auth });
 
-    const [{ withinWindow, menuValid, basePrice }, todayOrderKeys, activeAddons] = await Promise.all([
+    const [
+      { withinWindow, menuValid, basePrice, serviceDate },
+      orderRows,
+      activeAddons,
+    ] = await Promise.all([
       isWithinOrderWindow(sheets),
-      getTodayOrderKeys(sheets),
+      getOrderRows(sheets),
       getActiveAddons(sheets),
     ]);
+    const serviceDateOrderKeys = getOrderKeysForServiceDate(
+      orderRows,
+      serviceDate
+    );
 
     if (!withinWindow) {
       return res.status(403).json({
@@ -408,7 +474,7 @@ export default async function handler(req, res) {
       const orderKey = `${customer.whatsapp}|${validated.nama.toLowerCase()}`;
 
       if (
-        todayOrderKeys.includes(orderKey) ||
+        serviceDateOrderKeys.includes(orderKey) ||
         keysInThisSubmission.has(orderKey)
       ) {
         return res.status(409).json({
@@ -425,8 +491,6 @@ export default async function handler(req, res) {
     const orderedAt = new Date().toLocaleString("id-ID", {
       timeZone: "Asia/Jakarta",
     });
-    const serviceDate = getTomorrowJakartaDate();
-
     const resolvedOrders = validatedOrders.map((order) => {
       const { text: addonsText, total: addonsTotal } = resolveAddons(
         order.addons,

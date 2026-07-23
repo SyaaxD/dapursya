@@ -175,6 +175,8 @@ const state = {
   stats: {},
   sedangMengirim: false,
   configLoaded: false,
+  orderStatus: "BUKA",
+  statusMessage: "",
   openTime: "",
   closeTime: "",
 };
@@ -501,8 +503,11 @@ async function loadConfig() {
     const addonsChanged = !arraysEqual(state.addonsMaster, nextAddons);
 
     state.configLoaded = true;
-    state.openTime = data.config?.["Open Time"] || "";
-    state.closeTime = data.config?.["Close Time"] || "";
+    state.orderStatus = data.status || "BUKA";
+    state.statusMessage = data.message || "";
+    state.openTime = data.openTime || "";
+    state.closeTime = data.closeTime || "";
+    updateTanggal();
 
     if (menusChanged || menuDetailsChanged) {
       state.menuNames = nextMenus;
@@ -654,10 +659,21 @@ tutupModal.addEventListener("click", () => {
 // =====================================
 
 function updateTanggal() {
-  const besok = new Date();
-  besok.setDate(besok.getDate() + 1);
+  const targetDate = new Date();
+  const nowMinutes = targetDate.getHours() * 60 + targetDate.getMinutes();
+  const [openHour, openMinute] = state.openTime.split(":").map(Number);
+  const [closeHour, closeMinute] = state.closeTime.split(":").map(Number);
+  const openTotal = openHour * 60 + openMinute;
+  const closeTotal = closeHour * 60 + closeMinute;
+  const validSchedule = [openTotal, closeTotal].every(Number.isFinite);
+  const morningPart =
+    validSchedule && openTotal > closeTotal && nowMinutes < closeTotal;
 
-  tanggal.textContent = besok.toLocaleDateString("id-ID", {
+  if (!morningPart) {
+    targetDate.setDate(targetDate.getDate() + 1);
+  }
+
+  tanggal.textContent = targetDate.toLocaleDateString("id-ID", {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -690,6 +706,26 @@ function checkOrderingTime() {
     return;
   }
 
+  const statusValue = String(state.orderStatus || "")
+    .trim()
+    .toLocaleLowerCase("id-ID");
+  const manuallyClosed = ["tutup", "libur", "off", "closed"].includes(
+    statusValue
+  );
+
+  if (manuallyClosed) {
+    statusOrder.textContent = statusValue === "libur"
+      ? "🔴 DapurSya sedang libur"
+      : "🔴 Pemesanan Ditutup";
+    tombolKirim.disabled = true;
+    btnText.textContent = statusValue === "libur" ? "Sedang Libur" : "Pemesanan Ditutup";
+    showClosedModal(
+      state.statusMessage ||
+      "Pemesanan sedang ditutup. Kalau ada pertanyaan, langsung chat kami lewat WhatsApp ya."
+    );
+    return;
+  }
+
   if (!state.openTime || !state.closeTime) {
     statusOrder.textContent = "🟢 Pemesanan Dibuka";
     tombolKirim.disabled = false;
@@ -712,19 +748,19 @@ function checkOrderingTime() {
     return;
   }
 
-  if (sekarangMenit < openTotal) {
+  const withinWindow =
+    openTotal === closeTotal ||
+    (openTotal < closeTotal
+      ? sekarangMenit >= openTotal && sekarangMenit < closeTotal
+      : sekarangMenit >= openTotal || sekarangMenit < closeTotal);
+
+  if (!withinWindow) {
     statusOrder.textContent = `⏳ Dibuka pukul ${state.openTime}`;
     tombolKirim.disabled = true;
     btnText.textContent = "Belum Dibuka";
     showClosedModal(
-      "Pemesanan hari ini belum dibuka. Kalau ada pertanyaan, langsung chat kami lewat WhatsApp di bawah ini 👇"
-    );
-  } else if (sekarangMenit >= closeTotal) {
-    statusOrder.textContent = "🔴 Pemesanan Ditutup";
-    tombolKirim.disabled = true;
-    btnText.textContent = "Pemesanan Ditutup";
-    showClosedModal(
-      "Waktu pemesanan hari ini sudah lewat. Kalau ada kendala, langsung chat kami lewat WhatsApp di bawah ini 👇"
+      state.statusMessage ||
+      `Pemesanan dibuka setiap pukul ${state.openTime} WIB sampai ${state.closeTime} WIB hari berikutnya.`
     );
   } else {
     statusOrder.textContent = `🟢 Pemesanan Dibuka — tutup pukul ${state.closeTime}`;
