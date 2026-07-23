@@ -1,9 +1,21 @@
 import { google } from "googleapis";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+import { readPaymentRows } from "../lib/payment-sheet.js";
 
 const auth = new google.auth.GoogleAuth({
   credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
+
+const ratelimit =
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+    ? new Ratelimit({
+        redis: Redis.fromEnv(),
+        limiter: Ratelimit.slidingWindow(20, "10 m"),
+        prefix: "dapursya:admin-read",
+      })
+    : null;
 
 // Kolom A disimpan pakai new Date().toLocaleString("id-ID") di submit.js,
 // formatnya kira-kira "20/7/2026 08.15.00" -> ambil tgl/bln/thn dari situ.
@@ -20,6 +32,25 @@ function parseTanggal(str) {
 }
 
 export default async function handler(req, res) {
+  if (req.method !== "GET") {
+    return res.status(405).json({
+      success: false,
+      message: "Method tidak diizinkan",
+    });
+  }
+
+  if (ratelimit) {
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || "unknown";
+    const { success } = await ratelimit.limit(ip);
+
+    if (!success) {
+      return res.status(429).json({
+        success: false,
+        message: "Terlalu banyak percobaan. Tunggu beberapa menit.",
+      });
+    }
+  }
+
   const key = req.headers["x-admin-key"];
 
   if (!process.env.ADMIN_PASSWORD || key !== process.env.ADMIN_PASSWORD) {
@@ -32,10 +63,13 @@ export default async function handler(req, res) {
   try {
     const sheets = google.sheets({ version: "v4", auth });
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: "RESPON!A:F",
-    });
+    const [response, allPayments] = await Promise.all([
+      sheets.spreadsheets.values.get({
+        spreadsheetId: process.env.SPREADSHEET_ID,
+        range: "RESPON!A:M",
+      }),
+      readPaymentRows(sheets, process.env.SPREADSHEET_ID),
+    ]);
 
     const rows = response.data.values || [];
 
@@ -46,6 +80,12 @@ export default async function handler(req, res) {
       catatan: row[3] || "",
       addons: row[4] || "",
       totalAddons: Number(row[5]) || 0,
+      orderId: row[6] || "",
+      customerName: row[7] || "",
+      whatsapp: row[8] || "",
+      serviceDate: row[9] || "",
+      basePrice: Number(row[10]) || 0,
+      total: Number(row[11]) || 0,
     }));
 
     // Default: bulan & tahun berjalan. Bisa override lewat query
@@ -67,6 +107,12 @@ export default async function handler(req, res) {
       return parsed.month === targetMonth && parsed.year === targetYear;
     });
 
+    const payments = allPayments.filter((row) => {
+      const parsed = parseTanggal(row.serviceDate || row.orderedAt);
+      if (!parsed) return false;
+      return parsed.month === targetMonth && parsed.year === targetYear;
+    });
+
     const rekapPerAnak = {};
     const rekapTambahanPerAnak = {};
     const rekapMenu = {};
@@ -81,6 +127,26 @@ export default async function handler(req, res) {
       }
     });
 
+    const paymentSummary = payments.reduce(
+      (summary, payment) => {
+        summary.totalBilled += payment.total;
+        summary.totalPaid += Math.min(payment.paidAmount, payment.total);
+        summary.statusCounts[payment.status] =
+          (summary.statusCounts[payment.status] || 0) + 1;
+        return summary;
+      },
+      {
+        totalBilled: 0,
+        totalPaid: 0,
+        statusCounts: {},
+      }
+    );
+
+    paymentSummary.outstanding = Math.max(
+      0,
+      paymentSummary.totalBilled - paymentSummary.totalPaid
+    );
+
     res.setHeader("Cache-Control", "no-store");
 
     res.status(200).json({
@@ -92,6 +158,8 @@ export default async function handler(req, res) {
       rekapPerAnak,
       rekapTambahanPerAnak,
       rekapMenu,
+      payments,
+      paymentSummary,
     });
   } catch (err) {
     console.error(err);

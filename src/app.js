@@ -7,6 +7,8 @@ const WA_NUMBER = "6281389490706";
 const WA_MESSAGE = encodeURIComponent("Halo, saya mau tanya soal DapurSya");
 const MAX_ANAK = 10;
 const MENU_EMOJI = "🍽️";
+const CUSTOMER_STORAGE_KEY = "dapursya_customer";
+const DEFAULT_BOX_PRICE = 18000;
 
 document.querySelector("#app").innerHTML = `
   <div id="loadingBar"></div>
@@ -32,6 +34,47 @@ document.querySelector("#app").innerHTML = `
 
       <section class="order-form-section">
         <div class="form-section-heading">
+          <h3>Data Pemesan</h3>
+          <p>Cukup diisi sekali. Tidak perlu membuat akun.</p>
+        </div>
+
+        <div id="rememberedCustomer" class="remembered-customer" hidden></div>
+
+        <div class="form-group">
+          <label for="namaPemesan">Nama orang tua/pemesan</label>
+          <input
+            id="namaPemesan"
+            type="text"
+            maxlength="100"
+            autocomplete="name"
+            placeholder="Contoh: Ibu Dina"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="whatsapp">Nomor WhatsApp aktif</label>
+          <input
+            id="whatsapp"
+            type="tel"
+            inputmode="numeric"
+            maxlength="20"
+            autocomplete="tel"
+            placeholder="Contoh: 0812 3456 7890"
+          >
+          <p class="form-helper">Digunakan untuk identitas pesanan dan konfirmasi jika diperlukan.</p>
+        </div>
+
+        <label class="remember-customer-option">
+          <input id="rememberCustomer" type="checkbox">
+          <span>
+            Ingat data saya di perangkat ini
+            <small>Jangan dicentang jika memakai perangkat bersama.</small>
+          </span>
+        </label>
+      </section>
+
+      <section class="order-form-section">
+        <div class="form-section-heading">
           <h3>Nama Anak</h3>
           <p>Masukkan nama dan kelas setiap anak.</p>
         </div>
@@ -54,6 +97,8 @@ document.querySelector("#app").innerHTML = `
         </div>
 
         <div id="addonsContainer"></div>
+
+        <div id="orderSummary" class="order-summary"></div>
 
         <div class="form-group">
           <label for="catatan">Catatan</label>
@@ -118,6 +163,11 @@ const addonsContainer = document.getElementById("addonsContainer");
 const catatanInput = document.getElementById("catatan");
 const closedModal = document.getElementById("closedModal");
 const closedModalText = document.getElementById("closedModalText");
+const namaPemesanInput = document.getElementById("namaPemesan");
+const whatsappInput = document.getElementById("whatsapp");
+const rememberCustomerInput = document.getElementById("rememberCustomer");
+const rememberedCustomer = document.getElementById("rememberedCustomer");
+const orderSummary = document.getElementById("orderSummary");
 
 const state = {
   namaAnak: [""],
@@ -130,6 +180,7 @@ const state = {
   configLoaded: false,
   openTime: "",
   closeTime: "",
+  basePrice: DEFAULT_BOX_PRICE,
 };
 
 function escapeHtml(value) {
@@ -148,6 +199,62 @@ function arraysEqual(a, b) {
 function menuEmoji() {
   return MENU_EMOJI;
 }
+
+function normalizeWhatsapp(value) {
+  let digits = String(value ?? "").replace(/\D/g, "");
+
+  if (digits.startsWith("0")) {
+    digits = `62${digits.slice(1)}`;
+  } else if (digits.startsWith("8")) {
+    digits = `62${digits}`;
+  }
+
+  return digits;
+}
+
+function maskWhatsapp(value) {
+  const digits = normalizeWhatsapp(value);
+  return digits ? `•••• ${digits.slice(-4)}` : "";
+}
+
+function loadRememberedCustomer() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CUSTOMER_STORAGE_KEY) || "null");
+
+    if (!saved?.nama || !saved?.whatsapp) return;
+
+    namaPemesanInput.value = saved.nama;
+    whatsappInput.value = saved.whatsapp;
+    rememberCustomerInput.checked = true;
+    rememberedCustomer.hidden = false;
+    rememberedCustomer.innerHTML = `
+      <span>✓ Data terakhir digunakan: <strong>${escapeHtml(saved.nama)}</strong> · ${maskWhatsapp(saved.whatsapp)}</span>
+      <button type="button" id="changeCustomerBtn">Ganti</button>
+    `;
+    document.getElementById("changeCustomerBtn")?.addEventListener("click", () => {
+      namaPemesanInput.focus();
+      namaPemesanInput.select();
+    });
+  } catch {
+    localStorage.removeItem(CUSTOMER_STORAGE_KEY);
+  }
+}
+
+function saveRememberedCustomer(customer) {
+  try {
+    if (rememberCustomerInput.checked) {
+      localStorage.setItem(CUSTOMER_STORAGE_KEY, JSON.stringify(customer));
+    } else {
+      localStorage.removeItem(CUSTOMER_STORAGE_KEY);
+    }
+  } catch {
+    // Pemesanan tetap berjalan jika browser memblokir localStorage.
+  }
+}
+
+whatsappInput.addEventListener("input", () => {
+  whatsappInput.value = whatsappInput.value.replace(/[^\d+\s-]/g, "");
+});
 
 // =====================================
 // NAMA ANAK
@@ -184,6 +291,7 @@ function renderNamaAnak() {
   namaAnakContainer.querySelectorAll(".anak-nama-input").forEach((input) => {
     input.addEventListener("input", () => {
       state.namaAnak[Number(input.dataset.index)] = input.value;
+      renderOrderSummary();
     });
   });
 
@@ -191,6 +299,7 @@ function renderNamaAnak() {
     button.addEventListener("click", () => {
       state.namaAnak.splice(Number(button.dataset.index), 1);
       renderNamaAnak();
+      renderOrderSummary();
     });
   });
 
@@ -205,6 +314,7 @@ tambahAnak.addEventListener("click", () => {
 
   state.namaAnak.push("");
   renderNamaAnak();
+  renderOrderSummary();
 
   const lastInput = namaAnakContainer.querySelector(
     `.anak-nama-input[data-index="${state.namaAnak.length - 1}"]`
@@ -263,9 +373,46 @@ function renderMenuPilihan() {
   });
 }
 
+function formatRupiah(value) {
+  return `Rp${Number(value || 0).toLocaleString("id-ID")}`;
+}
+
+function getSelectedAddonsTotal() {
+  return state.addonsMaster
+    .filter((addon) => state.selectedAddons.includes(addon.nama))
+    .reduce((sum, addon) => sum + Number(addon.harga || 0), 0);
+}
+
+function renderOrderSummary() {
+  const childCount = state.namaAnak.length;
+  const addonsPerChild = getSelectedAddonsTotal();
+  const totalPerChild = state.basePrice + addonsPerChild;
+  const grandTotal = totalPerChild * childCount;
+
+  orderSummary.innerHTML = `
+    <div class="order-summary-heading">
+      <strong>Perkiraan Total</strong>
+      <span>${childCount} anak</span>
+    </div>
+    <div class="order-summary-row">
+      <span>Box ${childCount} × ${formatRupiah(state.basePrice)}</span>
+      <strong>${formatRupiah(state.basePrice * childCount)}</strong>
+    </div>
+    <div class="order-summary-row">
+      <span>Add-ons ${childCount} × ${formatRupiah(addonsPerChild)}</span>
+      <strong>${formatRupiah(addonsPerChild * childCount)}</strong>
+    </div>
+    <div class="order-summary-total">
+      <span>Total tagihan</span>
+      <strong>${formatRupiah(grandTotal)}</strong>
+    </div>
+  `;
+}
+
 function renderAddons() {
   if (state.addonsMaster.length === 0) {
     addonsContainer.innerHTML = "";
+    renderOrderSummary();
     return;
   }
 
@@ -322,8 +469,12 @@ function renderAddons() {
           (nama) => nama !== addon.nama
         );
       }
+
+      renderOrderSummary();
     });
   });
+
+  renderOrderSummary();
 }
 
 function getBadgeText(menu, total, maxCount, winners) {
@@ -384,6 +535,7 @@ async function loadConfig() {
     state.configLoaded = true;
     state.openTime = data.config?.["Open Time"] || "";
     state.closeTime = data.config?.["Close Time"] || "";
+    state.basePrice = Number(data.basePrice) || DEFAULT_BOX_PRICE;
 
     if (menusChanged) {
       state.menuNames = nextMenus;
@@ -404,6 +556,8 @@ async function loadConfig() {
       renderAddons();
     }
 
+    renderOrderSummary();
+
     checkOrderingTime();
   } catch (error) {
     console.error(error);
@@ -421,6 +575,21 @@ async function loadConfig() {
 // =====================================
 
 function validateForm() {
+  const customerName = namaPemesanInput.value.trim();
+  const whatsapp = normalizeWhatsapp(whatsappInput.value);
+
+  if (!customerName) {
+    showToast("⚠ Nama orang tua/pemesan wajib diisi", "warning");
+    namaPemesanInput.focus();
+    return false;
+  }
+
+  if (!/^628\d{8,11}$/.test(whatsapp)) {
+    showToast("⚠ Periksa kembali nomor WhatsApp", "warning");
+    whatsappInput.focus();
+    return false;
+  }
+
   const namesSeen = new Set();
 
   for (let index = 0; index < state.namaAnak.length; index++) {
@@ -457,6 +626,10 @@ async function handleSubmit() {
   startLoading();
 
   const sharedNote = catatanInput.value.trim();
+  const customer = {
+    nama: namaPemesanInput.value.trim(),
+    whatsapp: normalizeWhatsapp(whatsappInput.value),
+  };
   const orders = state.namaAnak.map((nama) => ({
     nama: nama.trim(),
     menu: state.selectedMenu,
@@ -471,7 +644,7 @@ async function handleSubmit() {
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orders }),
+      body: JSON.stringify({ customer, orders }),
       signal: controller.signal,
     });
 
@@ -484,7 +657,8 @@ async function handleSubmit() {
       return;
     }
 
-    showSuccessModal(result.orders || orders);
+    saveRememberedCustomer(customer);
+    showSuccessModal(result);
     await loadStats();
   } catch (error) {
     console.error(error);
@@ -610,8 +784,21 @@ function showToast(pesan, tipe) {
   setTimeout(() => toast.classList.remove("show"), 3000);
 }
 
-function showSuccessModal(orders) {
+function showSuccessModal(result) {
+  const orders = Array.isArray(result.orders) ? result.orders : [];
   modalText.replaceChildren();
+
+  const orderIdEl = document.createElement("strong");
+  orderIdEl.textContent = result.orderId || "-";
+  modalText.append("ID Pesanan: ", orderIdEl, document.createElement("br"));
+
+  if (result.customer?.nama) {
+    modalText.append(
+      `Pemesan: ${result.customer.nama}`,
+      document.createElement("br"),
+      document.createElement("br")
+    );
+  }
 
   orders.forEach((order, index) => {
     if (index > 0) {
@@ -623,12 +810,33 @@ function showSuccessModal(orders) {
     const menuEl = document.createElement("b");
     menuEl.textContent = order.menu;
 
-    modalText.append(namaEl, document.createElement("br"), "Menu: ", menuEl);
+    modalText.append(
+      namaEl,
+      document.createElement("br"),
+      "Menu: ",
+      menuEl,
+      document.createElement("br"),
+      `Total: ${formatRupiah(order.total)}`
+    );
   });
 
-  const confirmText = orders.map((order) => `${order.nama} - ${order.menu}`).join("\n");
+  const totalEl = document.createElement("strong");
+  totalEl.textContent = formatRupiah(result.grandTotal);
+  modalText.append(
+    document.createElement("br"),
+    document.createElement("br"),
+    "Total tagihan: ",
+    totalEl
+  );
+
+  const confirmText = orders
+    .map(
+      (order) =>
+        `${order.nama} - ${order.menu} - ${formatRupiah(order.total)}`
+    )
+    .join("\n");
   waConfirmBtn.href = `https://wa.me/?text=${encodeURIComponent(
-    `✅ Pesanan DapurSya sudah masuk!\n${confirmText}`
+    `✅ Pesanan DapurSya sudah masuk!\nID: ${result.orderId || "-"}\n${confirmText}\nTotal: ${formatRupiah(result.grandTotal)}`
   )}`;
   modal.classList.add("show");
 }
@@ -641,6 +849,7 @@ function resetForm() {
   renderNamaAnak();
   renderMenuPilihan();
   renderAddons();
+  renderOrderSummary();
 }
 
 function setLoading(isLoading) {
@@ -669,6 +878,8 @@ function stopLoading() {
 
 renderNamaAnak();
 renderMenuPilihan();
+loadRememberedCustomer();
+renderOrderSummary();
 updateTanggal();
 loadConfig();
 loadStats();

@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { BASE_BOX_PRICE_FALLBACK } from "../lib/payment-sheet.js";
 
 const auth = new google.auth.GoogleAuth({
     credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
@@ -48,6 +49,8 @@ export default async function handler(req, res) {
         });
 
         const menus = extractMenus(config);
+        const basePrice =
+            parseHarga(config["Harga Box"]) || BASE_BOX_PRICE_FALLBACK;
 
         // ADDONS sheet sifatnya opsional -- kalau belum dibikin,
         // jangan sampai nge-break seluruh /api/config.
@@ -85,7 +88,9 @@ export default async function handler(req, res) {
 
             menus,
 
-            addons
+            addons,
+
+            basePrice
 
         });
 

@@ -1,6 +1,12 @@
 import { google } from "googleapis";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { randomBytes } from "node:crypto";
+import {
+  BASE_BOX_PRICE_FALLBACK,
+  appendPaymentRows,
+  appendRawOrders,
+} from "../lib/payment-sheet.js";
 
 // Ambil credential dari Environment Variable
 const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
@@ -24,6 +30,7 @@ const ratelimit =
     : null;
 
 const NAMA_MAX_LENGTH = 100;
+const NAMA_PEMESAN_MAX_LENGTH = 100;
 const CATATAN_MAX_LENGTH = 300;
 const MAX_ANAK_PER_SUBMIT = 10;
 
@@ -70,6 +77,34 @@ function parseHarga(value) {
   return Math.max(0, Number(digits) || 0);
 }
 
+function normalizeWhatsapp(value) {
+  let digits = String(value ?? "").replace(/\D/g, "");
+
+  if (digits.startsWith("0")) {
+    digits = `62${digits.slice(1)}`;
+  } else if (digits.startsWith("8")) {
+    digits = `62${digits}`;
+  }
+
+  return digits;
+}
+
+function validateCustomer(rawCustomer) {
+  const nama = sanitize(rawCustomer?.nama);
+  const whatsapp = normalizeWhatsapp(rawCustomer?.whatsapp);
+
+  if (!nama) return { error: "Nama orang tua/pemesan wajib diisi" };
+  if (nama.length > NAMA_PEMESAN_MAX_LENGTH) {
+    return { error: "Nama orang tua/pemesan terlalu panjang" };
+  }
+
+  if (!/^628\d{8,11}$/.test(whatsapp)) {
+    return { error: "Nomor WhatsApp belum valid. Gunakan nomor Indonesia aktif." };
+  }
+
+  return { nama, whatsapp };
+}
+
 function getJakartaDateParts() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
@@ -84,6 +119,36 @@ function getJakartaDateParts() {
     month: Number(values.month),
     year: Number(values.year),
   };
+}
+
+function formatDateParts({ day, month, year }) {
+  return [
+    String(day).padStart(2, "0"),
+    String(month).padStart(2, "0"),
+    year,
+  ].join("/");
+}
+
+function getTomorrowJakartaDate() {
+  const today = getJakartaDateParts();
+  const tomorrow = new Date(Date.UTC(today.year, today.month - 1, today.day + 1));
+
+  return formatDateParts({
+    day: tomorrow.getUTCDate(),
+    month: tomorrow.getUTCMonth() + 1,
+    year: tomorrow.getUTCFullYear(),
+  });
+}
+
+function createOrderId() {
+  const today = getJakartaDateParts();
+  const datePart = [
+    String(today.year).slice(-2),
+    String(today.month).padStart(2, "0"),
+    String(today.day).padStart(2, "0"),
+  ].join("");
+
+  return `DS-${datePart}-${randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
 function getJakartaTimeParts() {
@@ -120,7 +185,12 @@ async function isWithinOrderWindow(sheets) {
   const closeTime = config["Close Time"];
   const menuValid = extractMenus(config);
 
-  if (!openTime || !closeTime) return { withinWindow: true, menuValid };
+  const basePrice =
+    parseHarga(config["Harga Box"]) || BASE_BOX_PRICE_FALLBACK;
+
+  if (!openTime || !closeTime) {
+    return { withinWindow: true, menuValid, basePrice };
+  }
 
   const now = getJakartaTimeParts();
   const nowTotal = now.hour * 60 + now.minute;
@@ -134,15 +204,16 @@ async function isWithinOrderWindow(sheets) {
   return {
     withinWindow: nowTotal >= openTotal && nowTotal < closeTotal,
     menuValid,
+    basePrice,
   };
 }
 
-// Ambil nama-nama yang udah submit HARI INI (dipakai buat cek semua
-// anak dalam 1 kali baca, bukan berkali-kali per anak).
-async function getTodayNames(sheets) {
+// Duplikat dihitung dari nomor WhatsApp + nama anak pada hari yang sama.
+// Nama anak yang sama dari dua keluarga berbeda tetap bisa memesan.
+async function getTodayOrderKeys(sheets) {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.SPREADSHEET_ID,
-    range: "RESPON!A:B",
+    range: "RESPON!A:I",
   });
 
   const rows = response.data.values || [];
@@ -159,7 +230,12 @@ async function getTodayNames(sheets) {
         parsed.year === today.year
       );
     })
-    .map((row) => String(row[1] || "").trim().toLowerCase());
+    .map((row) => {
+      const whatsapp = normalizeWhatsapp(row[8]);
+      const childName = String(row[1] || "").trim().toLowerCase();
+      return whatsapp && childName ? `${whatsapp}|${childName}` : "";
+    })
+    .filter(Boolean);
 }
 
 async function getActiveAddons(sheets) {
@@ -222,7 +298,7 @@ function validateOrder(order, menuValid) {
   return { nama, menu, catatan, addons: order.addons };
 }
 
-async function notifyTelegram(orders) {
+async function notifyTelegram({ orderId, customer, orders, grandTotal }) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
@@ -235,7 +311,14 @@ async function notifyTelegram(orders) {
     return line;
   });
 
-  const text = ["🍱 Pesanan baru masuk!", ...lines].join("\n");
+  const text = [
+    "🍱 Pesanan baru masuk!",
+    `ID: ${orderId}`,
+    `Pemesan: ${customer.nama}`,
+    `WhatsApp: +${customer.whatsapp}`,
+    ...lines,
+    `Total: Rp${grandTotal.toLocaleString("id-ID")}`,
+  ].join("\n");
 
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -269,6 +352,11 @@ export default async function handler(req, res) {
   }
 
   const rawOrders = Array.isArray(req.body?.orders) ? req.body.orders : [];
+  const customer = validateCustomer(req.body?.customer);
+
+  if (customer.error) {
+    return res.status(400).json({ success: false, message: customer.error });
+  }
 
   if (rawOrders.length === 0) {
     return res.status(400).json({
@@ -287,9 +375,9 @@ export default async function handler(req, res) {
   try {
     const sheets = google.sheets({ version: "v4", auth });
 
-    const [{ withinWindow, menuValid }, todayNames, activeAddons] = await Promise.all([
+    const [{ withinWindow, menuValid, basePrice }, todayOrderKeys, activeAddons] = await Promise.all([
       isWithinOrderWindow(sheets),
-      getTodayNames(sheets),
+      getTodayOrderKeys(sheets),
       getActiveAddons(sheets),
     ]);
 
@@ -308,7 +396,7 @@ export default async function handler(req, res) {
     }
 
     const validatedOrders = [];
-    const namesInThisSubmission = new Set();
+    const keysInThisSubmission = new Set();
 
     for (const rawOrder of rawOrders) {
       const validated = validateOrder(rawOrder, menuValid);
@@ -317,50 +405,121 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, message: validated.error });
       }
 
-      const namaLower = validated.nama.toLowerCase();
+      const orderKey = `${customer.whatsapp}|${validated.nama.toLowerCase()}`;
 
-      if (todayNames.includes(namaLower) || namesInThisSubmission.has(namaLower)) {
+      if (
+        todayOrderKeys.includes(orderKey) ||
+        keysInThisSubmission.has(orderKey)
+      ) {
         return res.status(409).json({
           success: false,
           message: `${validated.nama} udah submit pesanan hari ini. Mau ubah pilihan? Chat admin lewat tombol WA ya.`,
         });
       }
 
-      namesInThisSubmission.add(namaLower);
+      keysInThisSubmission.add(orderKey);
       validatedOrders.push(validated);
     }
 
-    const rows = validatedOrders.map((order) => {
+    const orderId = createOrderId();
+    const orderedAt = new Date().toLocaleString("id-ID", {
+      timeZone: "Asia/Jakarta",
+    });
+    const serviceDate = getTomorrowJakartaDate();
+
+    const resolvedOrders = validatedOrders.map((order) => {
       const { text: addonsText, total: addonsTotal } = resolveAddons(
         order.addons,
         activeAddons
       );
 
       order.addonsText = addonsText;
-
-      return [
-        new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }),
-        order.nama,
-        order.menu,
-        order.catatan,
-        addonsText,
-        addonsTotal,
-      ];
+      order.addonsTotal = addonsTotal;
+      order.total = basePrice + addonsTotal;
+      return order;
     });
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.SPREADSHEET_ID,
-      range: "RESPON!A:F",
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: rows },
-    });
+    const sourceIds = resolvedOrders.map(
+      (_, index) => `ORDER:${orderId}:${index + 1}`
+    );
+    const rawRows = resolvedOrders.map((order, index) => [
+      orderedAt,
+      order.nama,
+      order.menu,
+      order.catatan,
+      order.addonsText,
+      order.addonsTotal,
+      orderId,
+      customer.nama,
+      `'${customer.whatsapp}`,
+      serviceDate,
+      basePrice,
+      order.total,
+      sourceIds[index],
+    ]);
 
-    await notifyTelegram(validatedOrders);
+    await appendRawOrders(
+      sheets,
+      process.env.SPREADSHEET_ID,
+      rawRows
+    );
+
+    const paymentRows = resolvedOrders.map((order, index) => [
+      orderId,
+      orderedAt,
+      serviceDate,
+      customer.nama,
+      `'${customer.whatsapp}`,
+      order.nama,
+      order.menu,
+      basePrice,
+      order.addonsText,
+      order.addonsTotal,
+      order.total,
+      "Belum Lunas",
+      0,
+      "",
+      "",
+      "",
+      sourceIds[index],
+    ]);
+
+    try {
+      await appendPaymentRows(
+        sheets,
+        process.env.SPREADSHEET_ID,
+        paymentRows
+      );
+    } catch (paymentError) {
+      // RESPON sudah tersimpan. Panel admin akan memperbaiki baris pembayaran
+      // yang tertinggal lewat backfill saat dibuka.
+      console.error("Gagal menulis PEMBAYARAN, menunggu backfill:", paymentError);
+    }
+
+    const grandTotal = resolvedOrders.reduce((sum, order) => sum + order.total, 0);
+
+    await notifyTelegram({
+      orderId,
+      customer,
+      orders: resolvedOrders,
+      grandTotal,
+    });
 
     return res.status(200).json({
       success: true,
       message: "Berhasil",
-      orders: validatedOrders.map((o) => ({ nama: o.nama, menu: o.menu })),
+      orderId,
+      customer: { nama: customer.nama, whatsapp: customer.whatsapp },
+      serviceDate,
+      basePrice,
+      grandTotal,
+      orders: resolvedOrders.map((order) => ({
+        nama: order.nama,
+        menu: order.menu,
+        addons: order.addonsText,
+        addonsTotal: order.addonsTotal,
+        total: order.total,
+      })),
     });
   } catch (err) {
     console.error(err);
