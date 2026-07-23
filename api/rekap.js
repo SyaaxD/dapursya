@@ -43,6 +43,13 @@ function parseTanggal(str) {
   };
 }
 
+function splitAddonLabels(value) {
+  return String(value || "")
+    .split(/,\s*(?=[^,]+?\s*\(Rp[\d.]+\))/)
+    .map((label) => label.trim())
+    .filter(Boolean);
+}
+
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({
@@ -114,7 +121,7 @@ export default async function handler(req, res) {
     const targetYear = Number(req.query.tahun) || Number(jakartaNow.year);
 
     const data = allData.filter((row) => {
-      const parsed = parseTanggal(row.tanggal);
+      const parsed = parseTanggal(row.serviceDate || row.tanggal);
       if (!parsed) return false;
       return parsed.month === targetMonth && parsed.year === targetYear;
     });
@@ -127,15 +134,34 @@ export default async function handler(req, res) {
 
     const rekapPerAnak = {};
     const rekapTambahanPerAnak = {};
+    const rekapDetailPerAnak = {};
     const rekapMenu = {};
 
-    data.forEach(({ nama, menu, totalAddons }) => {
+    data.forEach(({ nama, menu, addons, totalAddons }) => {
       if (!nama) return;
       rekapPerAnak[nama] = (rekapPerAnak[nama] || 0) + 1;
       rekapTambahanPerAnak[nama] = (rekapTambahanPerAnak[nama] || 0) + totalAddons;
 
+      if (!rekapDetailPerAnak[nama]) {
+        rekapDetailPerAnak[nama] = {
+          jumlah: 0,
+          totalAddons: 0,
+          menus: {},
+          addons: {},
+        };
+      }
+
+      const childSummary = rekapDetailPerAnak[nama];
+      childSummary.jumlah += 1;
+      childSummary.totalAddons += totalAddons;
+
       if (menu) {
         rekapMenu[menu] = (rekapMenu[menu] || 0) + 1;
+        childSummary.menus[menu] = (childSummary.menus[menu] || 0) + 1;
+      }
+
+      for (const addon of splitAddonLabels(addons)) {
+        childSummary.addons[addon] = (childSummary.addons[addon] || 0) + 1;
       }
     });
 
@@ -166,9 +192,9 @@ export default async function handler(req, res) {
       bulan: targetMonth,
       tahun: targetYear,
       total: data.length,
-      data,
       rekapPerAnak,
       rekapTambahanPerAnak,
+      rekapDetailPerAnak,
       rekapMenu,
       payments,
       paymentSummary,

@@ -65,16 +65,13 @@ document.querySelector('#app').innerHTML = `
       <div id="paymentTable" class="admin-scroll-table admin-payment-table"></div>
 
       <details class="admin-details">
-        <summary>Ringkasan menu dan data mentah</summary>
+        <summary>Ringkasan menu dan pesanan anak</summary>
 
         <h2 class="admin-subheading">Menu Favorit</h2>
         <div id="menuFavoritTable"></div>
 
         <h2 class="admin-subheading">Rekap Nama Anak</h2>
         <div id="summaryTable"></div>
-
-        <h2 class="admin-subheading">Data RESPON Bulan Ini</h2>
-        <div id="rawTable" class="admin-scroll-table"></div>
       </details>
 
       <button id="logoutBtn" class="admin-logout-btn">Keluar</button>
@@ -89,7 +86,6 @@ const loginBtn = document.getElementById('loginBtn')
 const loginError = document.getElementById('loginError')
 const summaryTable = document.getElementById('summaryTable')
 const menuFavoritTable = document.getElementById('menuFavoritTable')
-const rawTable = document.getElementById('rawTable')
 const periodLabel = document.getElementById('periodLabel')
 const logoutBtn = document.getElementById('logoutBtn')
 const refreshBtn = document.getElementById('refreshBtn')
@@ -119,6 +115,11 @@ function normalizeWhatsapp(value) {
 }
 
 function toInputDate(value) {
+  const isoMatch = String(value || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`
+  }
+
   const match = String(value || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
   if (!match) return ''
   return `${match[3]}-${match[2].padStart(2, '0')}-${match[1].padStart(2, '0')}`
@@ -314,70 +315,60 @@ async function savePayment(button) {
 
 function renderSupportingTables(result) {
   const menuEntries = Object.entries(result.rekapMenu).sort((a, b) => b[1] - a[1])
-  menuFavoritTable.innerHTML = `
-    <table class="admin-table">
-      <tr><th>Menu</th><th class="admin-table-num">Jumlah Dipilih</th></tr>
-      ${menuEntries
-        .map(
-          ([menu, jumlah], i) => `
-            <tr>
-              <td>${i === 0 ? '🔥 ' : ''}${escapeHtml(menu)}</td>
-              <td class="admin-table-num">${jumlah}</td>
-            </tr>
-          `
-        )
-        .join('')}
-    </table>
-  `
+  menuFavoritTable.innerHTML = menuEntries.length
+    ? `
+      <table class="admin-table">
+        <tr><th>Menu</th><th class="admin-table-num">Jumlah Dipilih</th></tr>
+        ${menuEntries
+          .map(
+            ([menu, jumlah], i) => `
+              <tr>
+                <td>${i === 0 ? '🔥 ' : ''}${escapeHtml(menu)}</td>
+                <td class="admin-table-num">${jumlah}</td>
+              </tr>
+            `
+          )
+          .join('')}
+      </table>
+    `
+    : '<div class="admin-empty-state">Belum ada pesanan pada periode ini.</div>'
 
-  const entries = Object.entries(result.rekapPerAnak).sort((a, b) => b[1] - a[1])
-  summaryTable.innerHTML = `
-    <table class="admin-table">
-      <tr>
-        <th>Nama Anak</th>
-        <th class="admin-table-num">Jumlah Pesan</th>
-        <th class="admin-table-num">Total Add-ons</th>
-      </tr>
-      ${entries
-        .map(
-          ([nama, jumlah]) => `
-            <tr>
-              <td>${escapeHtml(nama)}</td>
-              <td class="admin-table-num">${jumlah}</td>
-              <td class="admin-table-num">${formatRupiah(result.rekapTambahanPerAnak[nama] || 0)}</td>
-            </tr>
-          `
-        )
-        .join('')}
-    </table>
-  `
+  const entries = Object.entries(result.rekapDetailPerAnak || {}).sort(
+    ([nameA], [nameB]) => nameA.localeCompare(nameB, 'id')
+  )
 
-  rawTable.innerHTML = `
-    <table class="admin-table admin-table-small">
-      <tr>
-        <th>Tanggal</th>
-        <th>Order ID</th>
-        <th>Pemesan</th>
-        <th>Nama Anak</th>
-        <th>Menu</th>
-        <th>Add-ons</th>
-      </tr>
-      ${result.data
-        .map(
-          (row) => `
-            <tr>
-              <td>${escapeHtml(row.tanggal)}</td>
-              <td>${escapeHtml(row.orderId)}</td>
-              <td>${escapeHtml(row.customerName)}</td>
-              <td>${escapeHtml(row.nama)}</td>
-              <td>${escapeHtml(row.menu)}</td>
-              <td>${escapeHtml(row.addons)}</td>
-            </tr>
-          `
-        )
-        .join('')}
-    </table>
-  `
+  summaryTable.innerHTML = entries.length
+    ? `
+      <table class="admin-table admin-child-summary">
+        <tr>
+          <th>Nama Anak</th>
+          <th>Menu dan Add-on yang Dipilih</th>
+        </tr>
+        ${entries
+          .map(([nama, detail]) => {
+            const menus = Object.keys(detail.menus || {})
+              .sort((a, b) => a.localeCompare(b, 'id'))
+              .map((menu) => escapeHtml(menu))
+              .join(' · ')
+            const addons = Object.keys(detail.addons || {})
+              .sort((a, b) => a.localeCompare(b, 'id'))
+              .map((addon) => escapeHtml(addon))
+              .join(' · ')
+
+            return `
+              <tr>
+                <td><strong>${escapeHtml(nama)}</strong></td>
+                <td>
+                  <span class="admin-order-detail">🍱 ${menus || 'Menu tidak tercatat'}</span>
+                  <span class="admin-order-detail admin-muted">＋ ${addons || 'Tanpa add-on'}</span>
+                </td>
+              </tr>
+            `
+          })
+          .join('')}
+      </table>
+    `
+    : '<div class="admin-empty-state">Belum ada pesanan anak pada periode ini.</div>'
 }
 
 function renderData(result) {

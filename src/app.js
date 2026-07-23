@@ -8,7 +8,6 @@ const WA_MESSAGE = encodeURIComponent("Halo, saya mau tanya soal DapurSya");
 const MAX_ANAK = 10;
 const MENU_EMOJI = "🍽️";
 const CUSTOMER_STORAGE_KEY = "dapursya_customer";
-const DEFAULT_BOX_PRICE = 18000;
 
 document.querySelector("#app").innerHTML = `
   <div id="loadingBar"></div>
@@ -98,8 +97,6 @@ document.querySelector("#app").innerHTML = `
 
         <div id="addonsContainer"></div>
 
-        <div id="orderSummary" class="order-summary"></div>
-
         <div class="form-group">
           <label for="catatan">Catatan</label>
           <textarea id="catatan" placeholder="Opsional, berlaku untuk semua anak..."></textarea>
@@ -167,20 +164,19 @@ const namaPemesanInput = document.getElementById("namaPemesan");
 const whatsappInput = document.getElementById("whatsapp");
 const rememberCustomerInput = document.getElementById("rememberCustomer");
 const rememberedCustomer = document.getElementById("rememberedCustomer");
-const orderSummary = document.getElementById("orderSummary");
 
 const state = {
   namaAnak: [""],
   selectedMenu: "",
   selectedAddons: [],
   menuNames: [],
+  menuDetails: {},
   addonsMaster: [],
   stats: {},
   sedangMengirim: false,
   configLoaded: false,
   openTime: "",
   closeTime: "",
-  basePrice: DEFAULT_BOX_PRICE,
 };
 
 function escapeHtml(value) {
@@ -291,7 +287,6 @@ function renderNamaAnak() {
   namaAnakContainer.querySelectorAll(".anak-nama-input").forEach((input) => {
     input.addEventListener("input", () => {
       state.namaAnak[Number(input.dataset.index)] = input.value;
-      renderOrderSummary();
     });
   });
 
@@ -299,7 +294,6 @@ function renderNamaAnak() {
     button.addEventListener("click", () => {
       state.namaAnak.splice(Number(button.dataset.index), 1);
       renderNamaAnak();
-      renderOrderSummary();
     });
   });
 
@@ -314,7 +308,6 @@ tambahAnak.addEventListener("click", () => {
 
   state.namaAnak.push("");
   renderNamaAnak();
-  renderOrderSummary();
 
   const lastInput = namaAnakContainer.querySelector(
     `.anak-nama-input[data-index="${state.namaAnak.length - 1}"]`
@@ -346,6 +339,7 @@ function renderMenuPilihan() {
   menuPilihan.innerHTML = state.menuNames
     .map((menu, index) => {
       const badge = getBadgeText(menu, total, maxCount, winners);
+      const sideDish = state.menuDetails[menu] || "";
       return `
         <button
           type="button"
@@ -355,6 +349,11 @@ function renderMenuPilihan() {
           ${badge ? `<span class="badge">${badge}</span>` : ""}
           <span class="emoji">${menuEmoji()}</span>
           <span class="menu-choice-title">${escapeHtml(menu)}</span>
+          ${
+            sideDish
+              ? `<span class="menu-side-dish" title="${escapeHtml(sideDish)}">Pelengkap: ${escapeHtml(sideDish)}</span>`
+              : ""
+          }
           <span class="menu-count">
             👥 ${Number(state.stats[menu] || 0)} orang memilih
           </span>
@@ -377,42 +376,9 @@ function formatRupiah(value) {
   return `Rp${Number(value || 0).toLocaleString("id-ID")}`;
 }
 
-function getSelectedAddonsTotal() {
-  return state.addonsMaster
-    .filter((addon) => state.selectedAddons.includes(addon.nama))
-    .reduce((sum, addon) => sum + Number(addon.harga || 0), 0);
-}
-
-function renderOrderSummary() {
-  const childCount = state.namaAnak.length;
-  const addonsPerChild = getSelectedAddonsTotal();
-  const totalPerChild = state.basePrice + addonsPerChild;
-  const grandTotal = totalPerChild * childCount;
-
-  orderSummary.innerHTML = `
-    <div class="order-summary-heading">
-      <strong>Perkiraan Total</strong>
-      <span>${childCount} anak</span>
-    </div>
-    <div class="order-summary-row">
-      <span>Box ${childCount} × ${formatRupiah(state.basePrice)}</span>
-      <strong>${formatRupiah(state.basePrice * childCount)}</strong>
-    </div>
-    <div class="order-summary-row">
-      <span>Add-ons ${childCount} × ${formatRupiah(addonsPerChild)}</span>
-      <strong>${formatRupiah(addonsPerChild * childCount)}</strong>
-    </div>
-    <div class="order-summary-total">
-      <span>Total tagihan</span>
-      <strong>${formatRupiah(grandTotal)}</strong>
-    </div>
-  `;
-}
-
 function renderAddons() {
   if (state.addonsMaster.length === 0) {
     addonsContainer.innerHTML = "";
-    renderOrderSummary();
     return;
   }
 
@@ -470,11 +436,8 @@ function renderAddons() {
         );
       }
 
-      renderOrderSummary();
     });
   });
-
-  renderOrderSummary();
 }
 
 function getBadgeText(menu, total, maxCount, winners) {
@@ -528,17 +491,22 @@ async function loadConfig() {
     const nextMenus = Array.isArray(data.menus)
       ? data.menus.filter((menu) => typeof menu === "string" && menu.trim())
       : [];
+    const nextMenuDetails =
+      data.menuDetails && typeof data.menuDetails === "object"
+        ? data.menuDetails
+        : {};
     const nextAddons = Array.isArray(data.addons) ? data.addons : [];
     const menusChanged = !arraysEqual(state.menuNames, nextMenus);
+    const menuDetailsChanged = !arraysEqual(state.menuDetails, nextMenuDetails);
     const addonsChanged = !arraysEqual(state.addonsMaster, nextAddons);
 
     state.configLoaded = true;
     state.openTime = data.config?.["Open Time"] || "";
     state.closeTime = data.config?.["Close Time"] || "";
-    state.basePrice = Number(data.basePrice) || DEFAULT_BOX_PRICE;
 
-    if (menusChanged) {
+    if (menusChanged || menuDetailsChanged) {
       state.menuNames = nextMenus;
+      state.menuDetails = nextMenuDetails;
 
       if (!state.menuNames.includes(state.selectedMenu)) {
         state.selectedMenu = "";
@@ -555,8 +523,6 @@ async function loadConfig() {
       );
       renderAddons();
     }
-
-    renderOrderSummary();
 
     checkOrderingTime();
   } catch (error) {
@@ -849,7 +815,6 @@ function resetForm() {
   renderNamaAnak();
   renderMenuPilihan();
   renderAddons();
-  renderOrderSummary();
 }
 
 function setLoading(isLoading) {
@@ -879,7 +844,6 @@ function stopLoading() {
 renderNamaAnak();
 renderMenuPilihan();
 loadRememberedCustomer();
-renderOrderSummary();
 updateTanggal();
 loadConfig();
 loadStats();

@@ -18,6 +18,21 @@ function extractMenus(config) {
     return menus;
 }
 
+function extractMenuDetails(config, menus) {
+    return Object.fromEntries(
+        menus.map((menu, index) => {
+            const number = index + 1;
+            const detail = String(
+                config[`Side Dish ${number}`] ??
+                config[`Detail Menu ${number}`] ??
+                ""
+            ).trim();
+
+            return [menu, detail];
+        })
+    );
+}
+
 function parseHarga(value) {
     if (typeof value === "number") return Math.max(0, value);
 
@@ -49,6 +64,7 @@ export default async function handler(req, res) {
         });
 
         const menus = extractMenus(config);
+        const menuDetails = extractMenuDetails(config, menus);
         const basePrice =
             parseHarga(config["Harga Box"]) || BASE_BOX_PRICE_FALLBACK;
 
@@ -87,6 +103,8 @@ export default async function handler(req, res) {
             config,
 
             menus,
+
+            menuDetails,
 
             addons,
 
