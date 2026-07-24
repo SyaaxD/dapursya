@@ -21,9 +21,15 @@ document.querySelector("#app").innerHTML = `
   >💬 Chat Admin</a>
 
   <div class="container">
-    <header>
-      <h1>Dapur<span>Sya</span></h1>
-      <p>Cita Rasa Resep Keluarga</p>
+    <header class="site-header">
+      <a class="brand-lockup" href="/" aria-label="Dapur Sya — kembali ke halaman utama">
+        <img
+          src="/dapursya-logo.png"
+          alt="Dapur Sya — Cita Rasa Resep Keluarga"
+          width="770"
+          height="224"
+        >
+      </a>
     </header>
 
     <main class="card">
