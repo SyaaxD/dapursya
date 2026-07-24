@@ -65,10 +65,17 @@ export default async function handler(req, res) {
             auth
         });
 
-        const settingResponse = await sheets.spreadsheets.values.get({
-            spreadsheetId: process.env.SPREADSHEET_ID,
-            range: "SETTING!A:B"
-        });
+        const [settingResponse, addonsResponse] = await Promise.all([
+            sheets.spreadsheets.values.get({
+                spreadsheetId: process.env.SPREADSHEET_ID,
+                range: "SETTING!A:B"
+            }),
+            sheets.spreadsheets.values.get({
+                spreadsheetId: process.env.SPREADSHEET_ID,
+                range: "ADDONS!A:C",
+                valueRenderOption: "UNFORMATTED_VALUE",
+            }).catch(() => null),
+        ]);
 
         const settingRows = settingResponse.data.values || [];
 
@@ -92,14 +99,7 @@ export default async function handler(req, res) {
         // jangan sampai nge-break seluruh /api/config.
         let addons = [];
 
-        try {
-
-            const addonsResponse = await sheets.spreadsheets.values.get({
-                spreadsheetId: process.env.SPREADSHEET_ID,
-                range: "ADDONS!A:C",
-                valueRenderOption: "UNFORMATTED_VALUE",
-            });
-
+        if (addonsResponse) {
             const addonsRows = addonsResponse.data.values || [];
 
             addons = addonsRows
@@ -109,9 +109,6 @@ export default async function handler(req, res) {
                     nama: row[0],
                     harga: parseHarga(row[1]),
                 }));
-
-        } catch (addonErr) {
-            addons = [];
         }
 
         res.setHeader("Cache-Control", "s-maxage=10, stale-while-revalidate=30");

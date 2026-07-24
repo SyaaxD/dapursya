@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { waitUntil } from "@vercel/functions";
 import { randomBytes } from "node:crypto";
 import {
   BASE_BOX_PRICE_FALLBACK,
@@ -390,6 +391,8 @@ async function notifyTelegram({ orderId, customer, orders, grandTotal }) {
 }
 
 export default async function handler(req, res) {
+  const requestStartedAt = Date.now();
+
   if (req.method !== "POST") {
     return res.status(405).json({
       success: false,
@@ -562,12 +565,18 @@ export default async function handler(req, res) {
 
     const grandTotal = resolvedOrders.reduce((sum, order) => sum + order.total, 0);
 
-    await notifyTelegram({
-      orderId,
-      customer,
-      orders: resolvedOrders,
-      grandTotal,
-    });
+    waitUntil(
+      notifyTelegram({
+        orderId,
+        customer,
+        orders: resolvedOrders,
+        grandTotal,
+      })
+    );
+
+    const processingMs = Date.now() - requestStartedAt;
+    res.setHeader("Server-Timing", `submit;dur=${processingMs}`);
+    console.info(`Submit ${orderId} selesai dalam ${processingMs} ms`);
 
     return res.status(200).json({
       success: true,

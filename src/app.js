@@ -3,6 +3,7 @@
 // =====================================
 
 const API_URL = "/api/submit";
+const SUGGESTION_API_URL = "/api/suggestion";
 const WA_NUMBER = "6281389490706";
 const WA_MESSAGE = encodeURIComponent("Halo, saya mau tanya soal DapurSya");
 const MAX_ANAK = 10;
@@ -106,34 +107,83 @@ document.querySelector("#app").innerHTML = `
       <button id="kirim" disabled>
         <span id="btnText">Memuat Menu...</span>
       </button>
+
+      <section class="menu-suggestion-card">
+        <button
+          type="button"
+          id="suggestionToggle"
+          class="suggestion-toggle"
+          aria-expanded="false"
+          aria-controls="suggestionPanel"
+        >
+          <span class="suggestion-toggle-icon" aria-hidden="true">💡</span>
+          <span>
+            <strong>Punya ide menu untuk besok?</strong>
+            <small>Klik untuk menyarankan menu favorit anak.</small>
+          </span>
+          <span class="suggestion-chevron" aria-hidden="true">▾</span>
+        </button>
+
+        <form id="suggestionPanel" class="suggestion-panel" hidden>
+          <label for="menuSuggestion">Saran menu</label>
+          <textarea
+            id="menuSuggestion"
+            maxlength="120"
+            rows="3"
+            placeholder="Contoh: nasi kuning, ayam katsu, atau sop makaroni..."
+          ></textarea>
+          <div class="suggestion-footer">
+            <small>Maksimal 120 karakter.</small>
+            <button type="submit" id="submitSuggestion" class="suggestion-submit">
+              Kirim Saran
+            </button>
+          </div>
+          <p id="suggestionStatus" class="suggestion-status" aria-live="polite"></p>
+        </form>
+      </section>
     </main>
+  </div>
 
-    <div id="toast"></div>
+  <div id="toast"></div>
 
-    <div id="successModal" class="modal">
-      <div class="modal-content">
-        <div class="success-icon">🍱</div>
-        <h2>Pesanan Berhasil!</h2>
-        <p id="modalText"></p>
-        <a id="waConfirmBtn" class="wa-modal-btn" target="_blank" rel="noopener">
-          📩 Simpan Bukti ke WA
-        </a>
-        <button id="tutupModal">Tutup</button>
-      </div>
+  <aside id="successNotice" class="success-notice" aria-hidden="true">
+    <button
+      type="button"
+      id="successNoticeToggle"
+      class="success-notice-toggle"
+      aria-expanded="false"
+      aria-controls="successNoticeDetails"
+    >
+      <span class="success-notice-icon" aria-hidden="true">✓</span>
+      <span class="success-notice-heading">
+        <strong>Pesanan berhasil dikirim!</strong>
+        <small>Ketuk untuk melihat rincian pesanan.</small>
+      </span>
+      <span id="successNoticeChevron" class="success-notice-chevron" aria-hidden="true">›</span>
+    </button>
+
+    <div id="successNoticeDetails" class="success-notice-details" hidden>
+      <div id="modalText" class="success-notice-order"></div>
+      <a id="waConfirmBtn" class="wa-modal-btn" target="_blank" rel="noopener">
+        📩 Simpan Bukti ke WA
+      </a>
+      <button type="button" id="tutupModal" class="success-notice-close">
+        Tutup
+      </button>
     </div>
+  </aside>
 
-    <div id="closedModal" class="modal">
-      <div class="modal-content">
-        <div class="success-icon">🕒</div>
-        <h2>Belum Bisa Pesan</h2>
-        <p id="closedModalText"></p>
-        <a
-          class="wa-modal-btn"
-          href="https://wa.me/${WA_NUMBER}?text=${WA_MESSAGE}"
-          target="_blank"
-          rel="noopener"
-        >💬 Chat Admin</a>
-      </div>
+  <div id="closedModal" class="modal">
+    <div class="modal-content">
+      <div class="success-icon">🕒</div>
+      <h2>Belum Bisa Pesan</h2>
+      <p id="closedModalText"></p>
+      <a
+        class="wa-modal-btn"
+        href="https://wa.me/${WA_NUMBER}?text=${WA_MESSAGE}"
+        target="_blank"
+        rel="noopener"
+      >💬 Chat Admin</a>
     </div>
   </div>
 `;
@@ -144,7 +194,10 @@ document.querySelector("#app").innerHTML = `
 
 const tombolKirim = document.getElementById("kirim");
 const toast = document.getElementById("toast");
-const modal = document.getElementById("successModal");
+const successNotice = document.getElementById("successNotice");
+const successNoticeToggle = document.getElementById("successNoticeToggle");
+const successNoticeDetails = document.getElementById("successNoticeDetails");
+const successNoticeChevron = document.getElementById("successNoticeChevron");
 const modalText = document.getElementById("modalText");
 const waConfirmBtn = document.getElementById("waConfirmBtn");
 const tutupModal = document.getElementById("tutupModal");
@@ -164,6 +217,11 @@ const namaPemesanInput = document.getElementById("namaPemesan");
 const whatsappInput = document.getElementById("whatsapp");
 const rememberCustomerInput = document.getElementById("rememberCustomer");
 const rememberedCustomer = document.getElementById("rememberedCustomer");
+const suggestionToggle = document.getElementById("suggestionToggle");
+const suggestionPanel = document.getElementById("suggestionPanel");
+const menuSuggestionInput = document.getElementById("menuSuggestion");
+const submitSuggestion = document.getElementById("submitSuggestion");
+const suggestionStatus = document.getElementById("suggestionStatus");
 
 const state = {
   namaAnak: [""],
@@ -179,7 +237,12 @@ const state = {
   statusMessage: "",
   openTime: "",
   closeTime: "",
+  sedangMengirimSaran: false,
+  configLoading: false,
+  configRetryAttempts: 0,
 };
+
+let configRetryTimer = null;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -324,8 +387,12 @@ tambahAnak.addEventListener("click", () => {
 function renderMenuPilihan() {
   if (state.menuNames.length === 0) {
     menuPilihan.innerHTML = `
-      <div class="menu-config-error">
-        Menu belum tersedia. Silakan chat admin untuk konfirmasi.
+      <div class="${state.configLoaded ? "menu-config-error" : "menu-loading-state"}">
+        ${
+          state.configLoaded
+            ? "Menu belum tersedia. Silakan chat admin untuk konfirmasi."
+            : "Sedang memuat menu Dapur Sya..."
+        }
       </div>
     `;
     return;
@@ -482,6 +549,9 @@ async function loadStats() {
 }
 
 async function loadConfig() {
+  if (state.configLoading) return;
+  state.configLoading = true;
+
   try {
     const response = await fetch("/api/config");
     const data = await response.json();
@@ -503,6 +573,9 @@ async function loadConfig() {
     const addonsChanged = !arraysEqual(state.addonsMaster, nextAddons);
 
     state.configLoaded = true;
+    state.configRetryAttempts = 0;
+    clearTimeout(configRetryTimer);
+    configRetryTimer = null;
     state.orderStatus = data.status || "BUKA";
     state.statusMessage = data.message || "";
     state.openTime = data.openTime || "";
@@ -534,10 +607,22 @@ async function loadConfig() {
     console.error(error);
 
     if (!state.configLoaded) {
-      statusOrder.textContent = "⚠ Gagal memuat menu. Silakan refresh halaman.";
+      state.configRetryAttempts += 1;
+      const retryDelay = Math.min(
+        2000 * 2 ** (state.configRetryAttempts - 1),
+        10000
+      );
+
+      statusOrder.textContent = "⏳ Sedang menghubungkan ke menu...";
       tombolKirim.disabled = true;
-      btnText.textContent = "Menu Tidak Tersedia";
+      btnText.textContent = "Mencoba Lagi...";
+      renderMenuPilihan();
+
+      clearTimeout(configRetryTimer);
+      configRetryTimer = setTimeout(loadConfig, retryDelay);
     }
+  } finally {
+    state.configLoading = false;
   }
 }
 
@@ -595,6 +680,12 @@ async function handleSubmit() {
   state.sedangMengirim = true;
   setLoading(true);
   startLoading();
+  const slowRequestTimer = setTimeout(() => {
+    if (state.sedangMengirim) {
+      btnText.innerHTML =
+        `<span class="spinner"></span> Masih memproses, jangan kirim ulang...`;
+    }
+  }, 8000);
 
   const sharedNote = catatanInput.value.trim();
   const customer = {
@@ -609,17 +700,11 @@ async function handleSubmit() {
   }));
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ customer, orders }),
-      signal: controller.signal,
     });
-
-    clearTimeout(timeoutId);
 
     const result = await response.json();
 
@@ -629,17 +714,13 @@ async function handleSubmit() {
     }
 
     saveRememberedCustomer(customer);
-    showSuccessModal(result);
-    await loadStats();
+    showSuccessNotice(result);
+    loadStats();
   } catch (error) {
     console.error(error);
-
-    if (error.name === "AbortError") {
-      showToast("❌ Koneksi lambat, coba lagi ya", "error");
-    } else {
-      showToast("❌ Gagal terhubung ke server, coba lagi", "error");
-    }
+    showToast("❌ Koneksi terputus. Periksa internet lalu coba lagi.", "error");
   } finally {
+    clearTimeout(slowRequestTimer);
     state.sedangMengirim = false;
     setLoading(false);
     stopLoading();
@@ -650,8 +731,78 @@ async function handleSubmit() {
 tombolKirim.addEventListener("click", handleSubmit);
 
 tutupModal.addEventListener("click", () => {
-  modal.classList.remove("show");
+  successNotice.classList.remove("show", "expanded");
+  successNotice.setAttribute("aria-hidden", "true");
+  successNoticeDetails.hidden = true;
+  successNoticeToggle.setAttribute("aria-expanded", "false");
+  successNoticeChevron.textContent = "›";
   resetForm();
+});
+
+successNoticeToggle.addEventListener("click", () => {
+  const willExpand = successNoticeDetails.hidden;
+  successNoticeDetails.hidden = !willExpand;
+  successNotice.classList.toggle("expanded", willExpand);
+  successNoticeToggle.setAttribute("aria-expanded", String(willExpand));
+  successNoticeChevron.textContent = willExpand ? "⌄" : "›";
+});
+
+suggestionToggle.addEventListener("click", () => {
+  const willOpen = suggestionPanel.hidden;
+  suggestionPanel.hidden = !willOpen;
+  suggestionToggle.setAttribute("aria-expanded", String(willOpen));
+  suggestionToggle.querySelector(".suggestion-chevron").textContent = willOpen
+    ? "▴"
+    : "▾";
+
+  if (willOpen) {
+    window.setTimeout(() => menuSuggestionInput.focus(), 50);
+  }
+});
+
+suggestionPanel.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (state.sedangMengirimSaran) return;
+
+  const suggestion = menuSuggestionInput.value.trim();
+  if (suggestion.length < 3) {
+    suggestionStatus.className = "suggestion-status error";
+    suggestionStatus.textContent = "Tulis nama menu minimal 3 karakter ya.";
+    menuSuggestionInput.focus();
+    return;
+  }
+
+  state.sedangMengirimSaran = true;
+  submitSuggestion.disabled = true;
+  submitSuggestion.textContent = "Mengirim...";
+  suggestionStatus.className = "suggestion-status";
+  suggestionStatus.textContent = "";
+
+  try {
+    const response = await fetch(SUGGESTION_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ suggestion }),
+    });
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || "Saran belum berhasil dikirim.");
+    }
+
+    menuSuggestionInput.value = "";
+    suggestionStatus.className = "suggestion-status success";
+    suggestionStatus.textContent = result.message;
+  } catch (error) {
+    suggestionStatus.className = "suggestion-status error";
+    suggestionStatus.textContent =
+      error.message || "Saran belum berhasil dikirim. Coba lagi ya.";
+  } finally {
+    state.sedangMengirimSaran = false;
+    submitSuggestion.disabled = false;
+    submitSuggestion.textContent = "Kirim Saran";
+  }
 });
 
 // =====================================
@@ -684,10 +835,13 @@ function updateTanggal() {
 function showClosedModal(pesan) {
   closedModalText.textContent = pesan;
   closedModal.classList.add("show");
+  document.body.classList.add("modal-open");
+  closedModal.scrollTop = 0;
 }
 
 function hideClosedModal() {
   closedModal.classList.remove("show");
+  document.body.classList.remove("modal-open");
 }
 
 function checkOrderingTime() {
@@ -786,7 +940,7 @@ function showToast(pesan, tipe) {
   setTimeout(() => toast.classList.remove("show"), 3000);
 }
 
-function showSuccessModal(result) {
+function showSuccessNotice(result) {
   const orders = Array.isArray(result.orders) ? result.orders : [];
   modalText.replaceChildren();
 
@@ -840,7 +994,12 @@ function showSuccessModal(result) {
   waConfirmBtn.href = `https://wa.me/?text=${encodeURIComponent(
     `✅ Pesanan DapurSya sudah masuk!\nID: ${result.orderId || "-"}\n${confirmText}\nTotal: ${formatRupiah(result.grandTotal)}`
   )}`;
-  modal.classList.add("show");
+  successNoticeDetails.hidden = true;
+  successNotice.classList.remove("expanded");
+  successNotice.classList.add("show");
+  successNotice.setAttribute("aria-hidden", "false");
+  successNoticeToggle.setAttribute("aria-expanded", "false");
+  successNoticeChevron.textContent = "›";
 }
 
 function resetForm() {
@@ -884,6 +1043,12 @@ updateTanggal();
 loadConfig();
 loadStats();
 
-setInterval(loadStats, 5000);
-setInterval(loadConfig, 10000);
+setInterval(() => {
+  if (!document.hidden) loadStats();
+}, 15000);
+
+setInterval(() => {
+  if (!document.hidden) loadConfig();
+}, 30000);
+
 setInterval(checkOrderingTime, 1000);
