@@ -4,6 +4,7 @@
 
 const API_URL = "/api/submit";
 const SUGGESTION_API_URL = "/api/suggestion";
+const CHANNEL_URL = "https://whatsapp.com/channel/0029Vb8XERa1SWt4lel3mY23";
 const WA_NUMBER = "6281389490706";
 const WA_MESSAGE = encodeURIComponent("Halo, saya mau tanya soal DapurSya");
 const MAX_ANAK = 10;
@@ -46,37 +47,39 @@ document.querySelector("#app").innerHTML = `
 
         <div id="rememberedCustomer" class="remembered-customer" hidden></div>
 
-        <div class="form-group">
-          <label for="namaPemesan">Nama orang tua/pemesan</label>
-          <input
-            id="namaPemesan"
-            type="text"
-            maxlength="100"
-            autocomplete="name"
-            placeholder="Contoh: Ibu Dina"
-          >
-        </div>
+        <div id="customerEditor" class="customer-editor">
+          <div class="form-group">
+            <label for="namaPemesan">Nama orang tua/pemesan</label>
+            <input
+              id="namaPemesan"
+              type="text"
+              maxlength="100"
+              autocomplete="name"
+              placeholder="Contoh: Ibu Dina"
+            >
+          </div>
 
-        <div class="form-group">
-          <label for="whatsapp">Nomor WhatsApp aktif</label>
-          <input
-            id="whatsapp"
-            type="tel"
-            inputmode="numeric"
-            maxlength="20"
-            autocomplete="tel"
-            placeholder="Contoh: 0812 3456 7890"
-          >
-          <p class="form-helper">Digunakan untuk identitas pesanan dan konfirmasi jika diperlukan.</p>
-        </div>
+          <div class="form-group">
+            <label for="whatsapp">Nomor WhatsApp aktif</label>
+            <input
+              id="whatsapp"
+              type="tel"
+              inputmode="numeric"
+              maxlength="20"
+              autocomplete="tel"
+              placeholder="Contoh: 0812 3456 7890"
+            >
+            <p class="form-helper">Digunakan untuk identitas pesanan dan konfirmasi jika diperlukan.</p>
+          </div>
 
-        <label class="remember-customer-option">
-          <input id="rememberCustomer" type="checkbox">
-          <span>
-            Ingat data saya di perangkat ini
-            <small>Jangan dicentang jika memakai perangkat bersama.</small>
-          </span>
-        </label>
+          <label class="remember-customer-option">
+            <input id="rememberCustomer" type="checkbox">
+            <span>
+              Ingat data saya di perangkat ini
+              <small>Jangan dicentang jika memakai perangkat bersama.</small>
+            </span>
+          </label>
+        </div>
       </section>
 
       <section class="order-form-section">
@@ -160,22 +163,47 @@ document.querySelector("#app").innerHTML = `
       aria-expanded="false"
       aria-controls="successNoticeDetails"
     >
-      <span class="success-notice-icon" aria-hidden="true">✓</span>
+      <span class="success-notice-brand" aria-hidden="true">
+        <img src="/dapursya-icon-512.png" alt="">
+        <span class="success-notice-check">✓</span>
+      </span>
       <span class="success-notice-heading">
-        <strong>Pesanan berhasil dikirim!</strong>
-        <small>Ketuk untuk melihat rincian pesanan.</small>
+        <strong>Pesanan berhasil!</strong>
+        <small>Tercatat aman di Dapur Sya · Lihat detail</small>
       </span>
       <span id="successNoticeChevron" class="success-notice-chevron" aria-hidden="true">›</span>
     </button>
 
     <div id="successNoticeDetails" class="success-notice-details" hidden>
+      <div class="success-notice-intro">
+        <span aria-hidden="true">🌿</span>
+        <p>
+          <strong>Terima kasih sudah memesan.</strong>
+          <small>Pesanan akan kami siapkan dengan penuh perhatian.</small>
+        </p>
+      </div>
       <div id="modalText" class="success-notice-order"></div>
-      <a id="waConfirmBtn" class="wa-modal-btn" target="_blank" rel="noopener">
-        📩 Simpan Bukti ke WA
-      </a>
-      <button type="button" id="tutupModal" class="success-notice-close">
-        Tutup
-      </button>
+      <div class="success-notice-actions">
+        <a id="waConfirmBtn" class="wa-modal-btn" target="_blank" rel="noopener">
+          <span aria-hidden="true">💬</span> Simpan Detail ke WhatsApp
+        </a>
+        <a
+          class="success-channel-btn"
+          href="${CHANNEL_URL}"
+          target="_blank"
+          rel="noopener"
+        >
+          <span aria-hidden="true">📸</span>
+          <span>
+            <strong>Ikuti Saluran Dapur Sya</strong>
+            <small>Lihat aktivitas dan momen kebersamaan</small>
+          </span>
+          <span class="success-channel-arrow" aria-hidden="true">→</span>
+        </a>
+        <button type="button" id="tutupModal" class="success-notice-close">
+          Tutup
+        </button>
+      </div>
     </div>
   </aside>
 
@@ -223,6 +251,7 @@ const namaPemesanInput = document.getElementById("namaPemesan");
 const whatsappInput = document.getElementById("whatsapp");
 const rememberCustomerInput = document.getElementById("rememberCustomer");
 const rememberedCustomer = document.getElementById("rememberedCustomer");
+const customerEditor = document.getElementById("customerEditor");
 const suggestionToggle = document.getElementById("suggestionToggle");
 const suggestionPanel = document.getElementById("suggestionPanel");
 const menuSuggestionInput = document.getElementById("menuSuggestion");
@@ -249,6 +278,7 @@ const state = {
 };
 
 let configRetryTimer = null;
+let rememberedCustomerSnapshot = null;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -287,23 +317,54 @@ function maskWhatsapp(value) {
 function loadRememberedCustomer() {
   try {
     const saved = JSON.parse(localStorage.getItem(CUSTOMER_STORAGE_KEY) || "null");
+    const normalizedWhatsapp = normalizeWhatsapp(saved?.whatsapp);
 
-    if (!saved?.nama || !saved?.whatsapp) return;
+    if (!saved?.nama || !/^628\d{8,11}$/.test(normalizedWhatsapp)) {
+      localStorage.removeItem(CUSTOMER_STORAGE_KEY);
+      rememberedCustomerSnapshot = null;
+      rememberedCustomer.hidden = true;
+      customerEditor.hidden = false;
+      return;
+    }
 
     namaPemesanInput.value = saved.nama;
-    whatsappInput.value = saved.whatsapp;
+    whatsappInput.value = normalizedWhatsapp;
     rememberCustomerInput.checked = true;
+    rememberedCustomerSnapshot = {
+      nama: saved.nama,
+      whatsapp: normalizedWhatsapp,
+    };
     rememberedCustomer.hidden = false;
+    customerEditor.hidden = true;
     rememberedCustomer.innerHTML = `
-      <span>✓ Data terakhir digunakan: <strong>${escapeHtml(saved.nama)}</strong> · ${maskWhatsapp(saved.whatsapp)}</span>
-      <button type="button" id="changeCustomerBtn">Ganti</button>
+      <span><b aria-hidden="true">✓</b> Data terakhir digunakan: <strong>${escapeHtml(saved.nama)}</strong> · ${maskWhatsapp(normalizedWhatsapp)}</span>
+      <button type="button" id="changeCustomerBtn" aria-expanded="false" aria-controls="customerEditor">Ganti</button>
     `;
-    document.getElementById("changeCustomerBtn")?.addEventListener("click", () => {
-      namaPemesanInput.focus();
-      namaPemesanInput.select();
+    const changeCustomerBtn = document.getElementById("changeCustomerBtn");
+    changeCustomerBtn?.addEventListener("click", () => {
+      const willEdit = customerEditor.hidden;
+      customerEditor.hidden = !willEdit;
+      rememberedCustomer.classList.toggle("editing", willEdit);
+      changeCustomerBtn.textContent = willEdit ? "Batal" : "Ganti";
+      changeCustomerBtn.setAttribute("aria-expanded", String(willEdit));
+
+      if (willEdit) {
+        window.setTimeout(() => {
+          namaPemesanInput.focus();
+          namaPemesanInput.select();
+        }, 50);
+        return;
+      }
+
+      namaPemesanInput.value = rememberedCustomerSnapshot.nama;
+      whatsappInput.value = rememberedCustomerSnapshot.whatsapp;
+      rememberCustomerInput.checked = true;
     });
   } catch {
     localStorage.removeItem(CUSTOMER_STORAGE_KEY);
+    rememberedCustomerSnapshot = null;
+    rememberedCustomer.hidden = true;
+    customerEditor.hidden = false;
   }
 }
 
@@ -720,6 +781,7 @@ async function handleSubmit() {
     }
 
     saveRememberedCustomer(customer);
+    loadRememberedCustomer();
     showSuccessNotice(result);
     loadStats();
   } catch (error) {
@@ -950,46 +1012,59 @@ function showSuccessNotice(result) {
   const orders = Array.isArray(result.orders) ? result.orders : [];
   modalText.replaceChildren();
 
+  const receiptMeta = document.createElement("div");
+  receiptMeta.className = "success-receipt-meta";
+
+  const receiptLabel = document.createElement("span");
+  receiptLabel.textContent = "DETAIL PESANAN";
+
   const orderIdEl = document.createElement("strong");
-  orderIdEl.textContent = result.orderId || "-";
-  modalText.append("ID Pesanan: ", orderIdEl, document.createElement("br"));
+  orderIdEl.textContent = `#${result.orderId || "-"}`;
+  receiptMeta.append(receiptLabel, orderIdEl);
+  modalText.append(receiptMeta);
 
   if (result.customer?.nama) {
-    modalText.append(
-      `Pemesan: ${result.customer.nama}`,
-      document.createElement("br"),
-      document.createElement("br")
-    );
+    const customerEl = document.createElement("p");
+    customerEl.className = "success-receipt-customer";
+    customerEl.textContent = `Pemesan: ${result.customer.nama}`;
+    modalText.append(customerEl);
   }
 
   orders.forEach((order, index) => {
-    if (index > 0) {
-      modalText.append(document.createElement("br"), document.createElement("br"));
-    }
+    const orderCard = document.createElement("div");
+    orderCard.className = "success-order-item";
+
+    const orderNumber = document.createElement("span");
+    orderNumber.className = "success-order-number";
+    orderNumber.textContent = String(index + 1).padStart(2, "0");
+
+    const orderInfo = document.createElement("div");
+    orderInfo.className = "success-order-info";
 
     const namaEl = document.createElement("strong");
     namaEl.textContent = order.nama;
-    const menuEl = document.createElement("b");
+    const menuEl = document.createElement("span");
     menuEl.textContent = order.menu;
 
-    modalText.append(
-      namaEl,
-      document.createElement("br"),
-      "Menu: ",
-      menuEl,
-      document.createElement("br"),
-      `Total: ${formatRupiah(order.total)}`
-    );
+    const priceEl = document.createElement("b");
+    priceEl.textContent = formatRupiah(order.total);
+
+    orderInfo.append(namaEl, menuEl);
+    orderCard.append(orderNumber, orderInfo, priceEl);
+    modalText.append(orderCard);
   });
+
+  const totalRow = document.createElement("div");
+  totalRow.className = "success-total-row";
+
+  const totalLabel = document.createElement("span");
+  totalLabel.append("Total tagihan", document.createElement("small"));
+  totalLabel.querySelector("small").textContent = `${orders.length} pesanan`;
 
   const totalEl = document.createElement("strong");
   totalEl.textContent = formatRupiah(result.grandTotal);
-  modalText.append(
-    document.createElement("br"),
-    document.createElement("br"),
-    "Total tagihan: ",
-    totalEl
-  );
+  totalRow.append(totalLabel, totalEl);
+  modalText.append(totalRow);
 
   const confirmText = orders
     .map(
