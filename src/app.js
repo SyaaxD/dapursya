@@ -33,6 +33,23 @@ document.querySelector("#app").innerHTML = `
       </a>
     </header>
 
+    <button
+      type="button"
+      id="referralPromoTrigger"
+      class="referral-promo-bar"
+      aria-haspopup="dialog"
+      aria-controls="referralPromoModal"
+    >
+      <span class="referral-promo-icon" aria-hidden="true">🎁</span>
+      <span class="referral-promo-copy">
+        <strong>Program Ajak Teman</strong>
+        <small>Potongan Rp5.000 untuk pesananmu</small>
+      </span>
+      <span class="referral-promo-action">
+        Lihat promo <span aria-hidden="true">›</span>
+      </span>
+    </button>
+
     <main class="card">
       <h2>Pilih Menu Besok</h2>
 
@@ -155,6 +172,36 @@ document.querySelector("#app").innerHTML = `
 
   <div id="toast"></div>
 
+  <div
+    id="referralPromoModal"
+    class="referral-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="referralPromoTitle"
+    aria-hidden="true"
+    hidden
+  >
+    <div class="referral-modal-content">
+      <h2 id="referralPromoTitle" class="visually-hidden">
+        Program Ajak Teman Dapur Sya
+      </h2>
+      <button
+        type="button"
+        id="referralPromoClose"
+        class="referral-modal-close"
+        aria-label="Tutup poster program ajak teman"
+      >×</button>
+      <img
+        src="/promo-referral-dapur-sya.webp"
+        alt="Program Ajak Teman Dapur Sya. Dapatkan potongan katering Rp5.000 untuk setiap teman yang berhasil melakukan pembayaran pertamanya."
+        width="1122"
+        height="1402"
+        loading="lazy"
+        decoding="async"
+      >
+    </div>
+  </div>
+
   <aside id="successNotice" class="success-notice" aria-hidden="true">
     <button
       type="button"
@@ -257,6 +304,9 @@ const suggestionPanel = document.getElementById("suggestionPanel");
 const menuSuggestionInput = document.getElementById("menuSuggestion");
 const submitSuggestion = document.getElementById("submitSuggestion");
 const suggestionStatus = document.getElementById("suggestionStatus");
+const referralPromoTrigger = document.getElementById("referralPromoTrigger");
+const referralPromoModal = document.getElementById("referralPromoModal");
+const referralPromoClose = document.getElementById("referralPromoClose");
 
 const state = {
   namaAnak: [""],
@@ -813,6 +863,45 @@ successNoticeToggle.addEventListener("click", () => {
   successNotice.classList.toggle("expanded", willExpand);
   successNoticeToggle.setAttribute("aria-expanded", String(willExpand));
   successNoticeChevron.textContent = willExpand ? "⌄" : "›";
+});
+
+let referralPreviousFocus = null;
+let referralCloseTimer = null;
+
+function openReferralPromo() {
+  window.clearTimeout(referralCloseTimer);
+  referralPreviousFocus = document.activeElement;
+  referralPromoModal.hidden = false;
+  referralPromoModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  window.requestAnimationFrame(() => {
+    referralPromoModal.classList.add("show");
+    referralPromoClose.focus();
+  });
+}
+
+function closeReferralPromo() {
+  referralPromoModal.classList.remove("show");
+  referralPromoModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+
+  referralCloseTimer = window.setTimeout(() => {
+    referralPromoModal.hidden = true;
+    referralPreviousFocus?.focus?.();
+  }, 220);
+}
+
+referralPromoTrigger.addEventListener("click", openReferralPromo);
+referralPromoClose.addEventListener("click", closeReferralPromo);
+
+referralPromoModal.addEventListener("click", (event) => {
+  if (event.target === referralPromoModal) closeReferralPromo();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !referralPromoModal.hidden) {
+    closeReferralPromo();
+  }
 });
 
 suggestionToggle.addEventListener("click", () => {
