@@ -43,7 +43,7 @@ document.querySelector("#app").innerHTML = `
       <span class="referral-promo-icon" aria-hidden="true">🎁</span>
       <span class="referral-promo-copy">
         <strong>Program Ajak Teman</strong>
-        <small>Potongan Rp5.000 untuk pesananmu</small>
+        <small>Ajak teman menetap, dapat 1 box gratis</small>
       </span>
       <span class="referral-promo-action">
         Lihat promo <span aria-hidden="true">›</span>
@@ -193,7 +193,7 @@ document.querySelector("#app").innerHTML = `
       >×</button>
       <img
         src="/promo-referral-dapur-sya.webp"
-        alt="Program Ajak Teman Dapur Sya. Dapatkan potongan katering Rp5.000 untuk setiap teman yang berhasil melakukan pembayaran pertamanya."
+        alt="Program Ajak Teman Dapur Sya. Ajak satu teman baru yang menyelesaikan lima pesanan berbayar dan dapatkan satu box reguler gratis senilai Rp18.000."
         width="1122"
         height="1402"
         loading="lazy"
