@@ -56,117 +56,189 @@ document.querySelector("#app").innerHTML = `
       <div id="tanggal"></div>
       <div id="statusOrder"></div>
 
-      <section class="order-form-section">
-        <div class="form-section-heading">
-          <h3>Data Pemesan</h3>
-          <p>Cukup diisi sekali. Tidak perlu membuat akun.</p>
-        </div>
+      <nav class="order-progress" aria-label="Tahapan pemesanan">
+        <ol>
+          <li class="is-active" data-progress-step="1" aria-current="step">
+            <span>1</span>
+            <small>Data</small>
+          </li>
+          <li data-progress-step="2">
+            <span>2</span>
+            <small>Menu</small>
+          </li>
+          <li data-progress-step="3">
+            <span>3</span>
+            <small>Konfirmasi</small>
+          </li>
+        </ol>
+      </nav>
+      <p id="wizardAnnouncement" class="visually-hidden" aria-live="polite"></p>
 
-        <div id="rememberedCustomer" class="remembered-customer" hidden></div>
-
-        <div id="customerEditor" class="customer-editor">
-          <div class="form-group">
-            <label for="namaPemesan">Nama orang tua/pemesan</label>
-            <input
-              id="namaPemesan"
-              type="text"
-              maxlength="100"
-              autocomplete="name"
-              placeholder="Contoh: Ibu Dina"
-            >
-          </div>
-
-          <div class="form-group">
-            <label for="whatsapp">Nomor WhatsApp aktif</label>
-            <input
-              id="whatsapp"
-              type="tel"
-              inputmode="numeric"
-              maxlength="20"
-              autocomplete="tel"
-              placeholder="Contoh: 0812 3456 7890"
-            >
-            <p class="form-helper">Digunakan untuk identitas pesanan dan konfirmasi jika diperlukan.</p>
-          </div>
-
-          <label class="remember-customer-option">
-            <input id="rememberCustomer" type="checkbox">
-            <span>
-              Ingat data saya di perangkat ini
-              <small>Jangan dicentang jika memakai perangkat bersama.</small>
-            </span>
-          </label>
-        </div>
-      </section>
-
-      <section class="order-form-section">
-        <div class="form-section-heading">
-          <h3>Nama Anak</h3>
-          <p>Masukkan nama dan kelas setiap anak.</p>
-        </div>
-
-        <div id="namaAnakContainer"></div>
-
-        <button type="button" id="tambahAnak" class="tambah-anak-btn">
-          + Tambah Anak
-        </button>
-      </section>
-
-      <section class="order-form-section">
-        <div class="form-group">
-          <label>Pilih Menu untuk Semua Anak</label>
-          <p class="form-helper">Menu yang dipilih berlaku untuk semua nama di atas.</p>
-          <div id="emptyState" class="empty-state" style="display:none">
-            Belum ada yang memilih menu hari ini 🍱
-          </div>
-          <div id="menuPilihan" class="menu-grid"></div>
-        </div>
-
-        <div id="addonsContainer"></div>
-
-        <div class="form-group">
-          <label for="catatan">Catatan</label>
-          <textarea id="catatan" placeholder="Opsional, berlaku untuk semua anak..."></textarea>
-        </div>
-      </section>
-
-      <button id="kirim" disabled>
-        <span id="btnText">Memuat Menu...</span>
-      </button>
-
-      <section class="menu-suggestion-card">
-        <button
-          type="button"
-          id="suggestionToggle"
-          class="suggestion-toggle"
-          aria-expanded="false"
-          aria-controls="suggestionPanel"
+      <div class="wizard-viewport">
+        <section
+          class="wizard-step is-active"
+          data-wizard-step="1"
+          aria-label="Langkah 1: Data pemesan dan anak"
+          tabindex="-1"
         >
-          <span class="suggestion-toggle-icon" aria-hidden="true">💡</span>
-          <span>
-            <strong>Punya ide menu untuk besok?</strong>
-            <small>Klik untuk menyarankan menu favorit anak.</small>
-          </span>
-          <span class="suggestion-chevron" aria-hidden="true">▾</span>
-        </button>
+          <section class="order-form-section">
+            <div class="form-section-heading">
+              <h3>Data Pemesan</h3>
+              <p>Cukup diisi sekali. Tidak perlu membuat akun.</p>
+            </div>
 
-        <form id="suggestionPanel" class="suggestion-panel" hidden>
-          <label for="menuSuggestion">Saran menu</label>
-          <textarea
-            id="menuSuggestion"
-            maxlength="120"
-            rows="3"
-            placeholder="Contoh: nasi kuning, ayam katsu, atau sop makaroni..."
-          ></textarea>
-          <div class="suggestion-footer">
-            <small>Maksimal 120 karakter.</small>
-            <button type="submit" id="submitSuggestion" class="suggestion-submit">
-              Kirim Saran
+            <div id="rememberedCustomer" class="remembered-customer" hidden></div>
+
+            <div id="customerEditor" class="customer-editor">
+              <div class="form-group">
+                <label for="namaPemesan">Nama orang tua/pemesan</label>
+                <input
+                  id="namaPemesan"
+                  type="text"
+                  maxlength="100"
+                  autocomplete="name"
+                  placeholder="Contoh: Ibu Dina"
+                >
+              </div>
+
+              <div class="form-group">
+                <label for="whatsapp">Nomor WhatsApp aktif</label>
+                <input
+                  id="whatsapp"
+                  type="tel"
+                  inputmode="numeric"
+                  maxlength="20"
+                  autocomplete="tel"
+                  placeholder="Contoh: 0812 3456 7890"
+                >
+                <p class="form-helper">Digunakan untuk identitas pesanan dan konfirmasi jika diperlukan.</p>
+              </div>
+
+              <label class="remember-customer-option">
+                <input id="rememberCustomer" type="checkbox">
+                <span>
+                  Ingat data saya di perangkat ini
+                  <small>Jangan dicentang jika memakai perangkat bersama.</small>
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section class="order-form-section">
+            <div class="form-section-heading">
+              <h3>Nama Anak</h3>
+              <p>Masukkan nama dan kelas setiap anak.</p>
+            </div>
+
+            <div id="namaAnakContainer"></div>
+
+            <button type="button" id="tambahAnak" class="tambah-anak-btn">
+              + Tambah Anak
+            </button>
+          </section>
+
+          <div class="wizard-actions wizard-actions-single">
+            <button type="button" id="nextToMenu" class="wizard-btn wizard-btn-primary">
+              Lanjut Pilih Menu <span aria-hidden="true">→</span>
             </button>
           </div>
-          <p id="suggestionStatus" class="suggestion-status" aria-live="polite"></p>
-        </form>
-      </section>
+        </section>
+
+        <section
+          class="wizard-step"
+          data-wizard-step="2"
+          aria-label="Langkah 2: Pilih menu dan add-ons"
+          tabindex="-1"
+          hidden
+        >
+          <section class="order-form-section">
+            <div class="form-group">
+              <label>Pilih Menu untuk Semua Anak</label>
+              <p class="form-helper">Menu yang dipilih berlaku untuk semua nama di atas.</p>
+              <div id="emptyState" class="empty-state" style="display:none">
+                Belum ada yang memilih menu hari ini 🍱
+              </div>
+              <div id="menuPilihan" class="menu-grid"></div>
+            </div>
+
+            <div id="addonsContainer"></div>
+          </section>
+
+          <div class="wizard-actions">
+            <button type="button" id="backToData" class="wizard-btn wizard-btn-secondary">
+              <span aria-hidden="true">←</span> Kembali
+            </button>
+            <button type="button" id="nextToReview" class="wizard-btn wizard-btn-primary">
+              Periksa Pesanan <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </section>
+
+        <section
+          class="wizard-step"
+          data-wizard-step="3"
+          aria-label="Langkah 3: Periksa dan kirim pesanan"
+          tabindex="-1"
+          hidden
+        >
+          <section class="order-form-section">
+            <div class="form-section-heading">
+              <h3>Periksa Pesanan</h3>
+              <p>Pastikan nama dan pilihan menu sudah sesuai.</p>
+            </div>
+
+            <div id="orderReview" class="order-review"></div>
+
+            <div class="form-group">
+              <label for="catatan">Catatan</label>
+              <textarea id="catatan" placeholder="Opsional, berlaku untuk semua anak..."></textarea>
+            </div>
+          </section>
+
+          <div class="wizard-actions">
+            <button type="button" id="backToMenu" class="wizard-btn wizard-btn-secondary">
+              <span aria-hidden="true">←</span> Kembali
+            </button>
+            <button id="kirim" class="wizard-btn wizard-btn-primary" disabled>
+              <span id="btnText">Memuat Menu...</span>
+            </button>
+          </div>
+
+          <section class="menu-suggestion-card">
+            <button
+              type="button"
+              id="suggestionToggle"
+              class="suggestion-toggle"
+              aria-expanded="false"
+              aria-controls="suggestionPanel"
+            >
+              <span class="suggestion-toggle-icon" aria-hidden="true">💡</span>
+              <span>
+                <strong>Punya ide menu untuk besok?</strong>
+                <small>Klik untuk menyarankan menu favorit anak.</small>
+              </span>
+              <span class="suggestion-chevron" aria-hidden="true">▾</span>
+            </button>
+
+            <form id="suggestionPanel" class="suggestion-panel" hidden>
+              <label for="menuSuggestion">Saran menu</label>
+              <textarea
+                id="menuSuggestion"
+                maxlength="120"
+                rows="3"
+                placeholder="Contoh: nasi kuning, ayam katsu, atau sop makaroni..."
+              ></textarea>
+              <div class="suggestion-footer">
+                <small>Maksimal 120 karakter.</small>
+                <button type="submit" id="submitSuggestion" class="suggestion-submit">
+                  Kirim Saran
+                </button>
+              </div>
+              <p id="suggestionStatus" class="suggestion-status" aria-live="polite"></p>
+            </form>
+          </section>
+        </section>
+      </div>
     </main>
   </div>
 
@@ -307,8 +379,20 @@ const suggestionStatus = document.getElementById("suggestionStatus");
 const referralPromoTrigger = document.getElementById("referralPromoTrigger");
 const referralPromoModal = document.getElementById("referralPromoModal");
 const referralPromoClose = document.getElementById("referralPromoClose");
+const orderCard = document.querySelector(".card");
+const wizardSteps = [...document.querySelectorAll("[data-wizard-step]")];
+const wizardProgressItems = [
+  ...document.querySelectorAll("[data-progress-step]"),
+];
+const wizardAnnouncement = document.getElementById("wizardAnnouncement");
+const nextToMenu = document.getElementById("nextToMenu");
+const backToData = document.getElementById("backToData");
+const nextToReview = document.getElementById("nextToReview");
+const backToMenu = document.getElementById("backToMenu");
+const orderReview = document.getElementById("orderReview");
 
 const state = {
+  currentStep: 1,
   namaAnak: [""],
   selectedMenu: "",
   selectedAddons: [],
@@ -433,6 +517,146 @@ function saveRememberedCustomer(customer) {
 whatsappInput.addEventListener("input", () => {
   whatsappInput.value = whatsappInput.value.replace(/[^\d+\s-]/g, "");
 });
+
+// =====================================
+// ALUR PEMESANAN 3 TAHAP
+// =====================================
+
+const WIZARD_STEP_LABELS = {
+  1: "Data pemesan dan anak",
+  2: "Pilih menu dan add-ons",
+  3: "Periksa dan kirim pesanan",
+};
+
+function showWizardStep(step, options = {}) {
+  const { scroll = true, focus = true } = options;
+  const nextStep = Math.min(3, Math.max(1, Number(step) || 1));
+  state.currentStep = nextStep;
+
+  wizardSteps.forEach((stepPanel) => {
+    const panelStep = Number(stepPanel.dataset.wizardStep);
+    const isActive = panelStep === nextStep;
+    stepPanel.hidden = !isActive;
+    stepPanel.classList.toggle("is-active", isActive);
+  });
+
+  wizardProgressItems.forEach((item) => {
+    const itemStep = Number(item.dataset.progressStep);
+    const isActive = itemStep === nextStep;
+    item.classList.toggle("is-active", isActive);
+    item.classList.toggle("is-complete", itemStep < nextStep);
+
+    if (isActive) {
+      item.setAttribute("aria-current", "step");
+    } else {
+      item.removeAttribute("aria-current");
+    }
+  });
+
+  if (nextStep === 3) renderOrderReview();
+  wizardAnnouncement.textContent = `Langkah ${nextStep} dari 3: ${WIZARD_STEP_LABELS[nextStep]}`;
+
+  const activeStep = wizardSteps.find(
+    (stepPanel) => Number(stepPanel.dataset.wizardStep) === nextStep
+  );
+
+  window.requestAnimationFrame(() => {
+    if (focus) activeStep?.focus({ preventScroll: true });
+    if (!scroll) return;
+
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    orderCard?.scrollIntoView({
+      behavior: reducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
+  });
+}
+
+function appendReviewDetail(container, label, value) {
+  const row = document.createElement("div");
+  row.className = "order-review-detail";
+
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+
+  const valueEl = document.createElement("strong");
+  valueEl.textContent = value;
+
+  row.append(labelEl, valueEl);
+  container.append(row);
+}
+
+function renderOrderReview() {
+  orderReview.replaceChildren();
+
+  const menuCard = document.createElement("div");
+  menuCard.className = "order-review-menu";
+
+  const menuIcon = document.createElement("span");
+  menuIcon.className = "order-review-menu-icon";
+  menuIcon.setAttribute("aria-hidden", "true");
+  menuIcon.textContent = MENU_EMOJI;
+
+  const menuCopy = document.createElement("div");
+  const menuLabel = document.createElement("small");
+  menuLabel.textContent = `MENU UNTUK ${state.namaAnak.length} ANAK`;
+  const menuName = document.createElement("strong");
+  menuName.textContent = state.selectedMenu || "Belum dipilih";
+  menuCopy.append(menuLabel, menuName);
+
+  const sideDish = state.menuDetails[state.selectedMenu];
+  if (sideDish) {
+    const sideDishEl = document.createElement("span");
+    sideDishEl.textContent = `Pelengkap: ${sideDish}`;
+    menuCopy.append(sideDishEl);
+  }
+
+  menuCard.append(menuIcon, menuCopy);
+  orderReview.append(menuCard);
+
+  const childrenList = document.createElement("ol");
+  childrenList.className = "order-review-children";
+  state.namaAnak.forEach((name, index) => {
+    const item = document.createElement("li");
+    const number = document.createElement("span");
+    number.textContent = String(index + 1).padStart(2, "0");
+    const childName = document.createElement("strong");
+    childName.textContent = name.trim();
+    item.append(number, childName);
+    childrenList.append(item);
+  });
+  orderReview.append(childrenList);
+
+  const details = document.createElement("div");
+  details.className = "order-review-details";
+  appendReviewDetail(
+    details,
+    "Pemesan",
+    `${namaPemesanInput.value.trim()} · ${maskWhatsapp(whatsappInput.value)}`
+  );
+  appendReviewDetail(
+    details,
+    "Add-ons",
+    state.selectedAddons.length > 0
+      ? state.selectedAddons.join(", ")
+      : "Tanpa add-ons"
+  );
+  orderReview.append(details);
+}
+
+nextToMenu.addEventListener("click", () => {
+  if (validateCustomerStep()) showWizardStep(2);
+});
+
+backToData.addEventListener("click", () => showWizardStep(1));
+
+nextToReview.addEventListener("click", () => {
+  if (validateMenuStep()) showWizardStep(3);
+});
+
+backToMenu.addEventListener("click", () => showWizardStep(2));
 
 // =====================================
 // NAMA ANAK
@@ -747,20 +971,31 @@ async function loadConfig() {
 // VALIDASI & SUBMIT
 // =====================================
 
-function validateForm() {
+function showStepValidationError(step, message, target) {
+  showWizardStep(step);
+  showToast(message, "warning");
+  window.setTimeout(() => target?.focus?.(), 80);
+  return false;
+}
+
+function validateCustomerStep() {
   const customerName = namaPemesanInput.value.trim();
   const whatsapp = normalizeWhatsapp(whatsappInput.value);
 
   if (!customerName) {
-    showToast("⚠ Nama orang tua/pemesan wajib diisi", "warning");
-    namaPemesanInput.focus();
-    return false;
+    return showStepValidationError(
+      1,
+      "⚠ Nama orang tua/pemesan wajib diisi",
+      namaPemesanInput
+    );
   }
 
   if (!/^628\d{8,11}$/.test(whatsapp)) {
-    showToast("⚠ Periksa kembali nomor WhatsApp", "warning");
-    whatsappInput.focus();
-    return false;
+    return showStepValidationError(
+      1,
+      "⚠ Periksa kembali nomor WhatsApp",
+      whatsappInput
+    );
   }
 
   const namesSeen = new Set();
@@ -769,25 +1004,62 @@ function validateForm() {
     const nama = state.namaAnak[index].trim();
 
     if (!nama) {
-      showToast(`⚠ Nama anak ke-${index + 1} wajib diisi`, "warning");
-      return false;
+      return showStepValidationError(
+        1,
+        `⚠ Nama anak ke-${index + 1} wajib diisi`,
+        namaAnakContainer.querySelector(
+          `.anak-nama-input[data-index="${index}"]`
+        )
+      );
     }
 
     const normalized = nama.toLocaleLowerCase("id-ID");
     if (namesSeen.has(normalized)) {
-      showToast(`⚠ Nama ${nama} ditulis lebih dari sekali`, "warning");
-      return false;
+      return showStepValidationError(
+        1,
+        `⚠ Nama ${nama} ditulis lebih dari sekali`,
+        namaAnakContainer.querySelector(
+          `.anak-nama-input[data-index="${index}"]`
+        )
+      );
     }
 
     namesSeen.add(normalized);
   }
 
+  return true;
+}
+
+function validateMenuStep() {
+  if (!state.configLoaded) {
+    return showStepValidationError(
+      2,
+      "⏳ Menu masih dimuat. Tunggu sebentar ya.",
+      menuPilihan
+    );
+  }
+
+  if (state.menuNames.length === 0) {
+    return showStepValidationError(
+      2,
+      "⚠ Menu belum tersedia. Silakan chat admin untuk konfirmasi.",
+      menuPilihan
+    );
+  }
+
   if (!state.selectedMenu || !state.menuNames.includes(state.selectedMenu)) {
-    showToast("⚠ Pilih satu menu untuk semua anak", "warning");
-    return false;
+    return showStepValidationError(
+      2,
+      "⚠ Pilih satu menu untuk semua anak",
+      menuPilihan.querySelector(".menu-choice")
+    );
   }
 
   return true;
+}
+
+function validateForm() {
+  return validateCustomerStep() && validateMenuStep();
 }
 
 async function handleSubmit() {
@@ -1180,6 +1452,7 @@ function resetForm() {
   renderNamaAnak();
   renderMenuPilihan();
   renderAddons();
+  showWizardStep(1);
 }
 
 function setLoading(isLoading) {
@@ -1209,6 +1482,7 @@ function stopLoading() {
 renderNamaAnak();
 renderMenuPilihan();
 loadRememberedCustomer();
+showWizardStep(1, { scroll: false, focus: false });
 updateTanggal();
 loadConfig();
 loadStats();

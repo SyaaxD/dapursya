@@ -2265,6 +2265,423 @@ button:disabled{
 
 }
 
+/* ===========================
+   Order Wizard
+=========================== */
+
+.order-progress{
+
+    margin:24px 0 2px;
+    padding:14px 12px 12px;
+    border:1px solid rgba(255,255,255,.07);
+    border-radius:16px;
+    background:rgba(8,19,32,.36);
+
+}
+
+.order-progress ol{
+
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    margin:0;
+    padding:0;
+    list-style:none;
+
+}
+
+.order-progress li{
+
+    position:relative;
+    display:grid;
+    justify-items:center;
+    gap:6px;
+    color:#64748b;
+    font-weight:700;
+
+}
+
+.order-progress li:not(:last-child)::after{
+
+    content:"";
+    position:absolute;
+    z-index:0;
+    top:15px;
+    left:calc(50% + 21px);
+    width:calc(100% - 42px);
+    height:2px;
+    border-radius:999px;
+    background:rgba(148,163,184,.2);
+    transition:background .25s ease;
+
+}
+
+.order-progress li.is-complete:not(:last-child)::after{
+
+    background:linear-gradient(90deg,#22c55e,#4ade80);
+
+}
+
+.order-progress li > span{
+
+    position:relative;
+    z-index:1;
+    display:grid;
+    width:31px;
+    height:31px;
+    place-items:center;
+    border:1px solid rgba(148,163,184,.24);
+    border-radius:50%;
+    background:#111d2f;
+    color:#94a3b8;
+    font-size:12px;
+    transition:.25s ease;
+
+}
+
+.order-progress li > small{
+
+    font-size:11px;
+    line-height:1;
+    transition:color .25s ease;
+
+}
+
+.order-progress li.is-active,
+.order-progress li.is-complete{
+
+    color:#d1fae5;
+
+}
+
+.order-progress li.is-active > span{
+
+    border-color:#4ade80;
+    background:#22c55e;
+    color:#04130a;
+    box-shadow:0 0 0 5px rgba(34,197,94,.12);
+
+}
+
+.order-progress li.is-complete > span{
+
+    border-color:rgba(74,222,128,.7);
+    background:rgba(34,197,94,.16);
+    color:#4ade80;
+
+}
+
+.order-progress li.is-complete > span::before{
+
+    content:"✓";
+    font-size:14px;
+
+}
+
+.order-progress li.is-complete > span{
+
+    font-size:0;
+
+}
+
+.wizard-viewport{
+
+    overflow:clip;
+
+}
+
+.wizard-step{
+
+    outline:none;
+
+}
+
+.wizard-step[hidden]{
+
+    display:none;
+
+}
+
+.wizard-step.is-active{
+
+    animation:wizardStepIn .3s ease both;
+
+}
+
+.wizard-step > .order-form-section:first-child{
+
+    margin-top:22px;
+    padding-top:0;
+    border-top:none;
+
+}
+
+.wizard-actions{
+
+    display:grid;
+    grid-template-columns:minmax(110px,.72fr) minmax(0,1.28fr);
+    gap:10px;
+    margin-top:28px;
+
+}
+
+.wizard-actions-single{
+
+    grid-template-columns:1fr;
+
+}
+
+.wizard-btn{
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    min-height:54px;
+    margin:0;
+    padding:14px 16px;
+    font-size:15px;
+    line-height:1.2;
+
+}
+
+.wizard-btn-primary{
+
+    background:linear-gradient(135deg,#22c55e,#16a34a);
+
+}
+
+.wizard-btn-secondary{
+
+    border:1px solid rgba(148,163,184,.18);
+    background:#111d2f;
+    color:#cbd5e1;
+    box-shadow:none;
+
+}
+
+.wizard-btn-secondary:hover{
+
+    border-color:rgba(74,222,128,.35);
+    background:#17243a;
+    box-shadow:none;
+    letter-spacing:normal;
+
+}
+
+.order-review{
+
+    display:grid;
+    gap:12px;
+
+}
+
+.order-review-menu{
+
+    display:flex;
+    align-items:center;
+    gap:13px;
+    padding:16px;
+    border:1px solid rgba(74,222,128,.22);
+    border-radius:17px;
+    background:
+        radial-gradient(circle at 100% 0,rgba(34,197,94,.12),transparent 48%),
+        #0d1c28;
+
+}
+
+.order-review-menu-icon{
+
+    display:grid;
+    flex:0 0 46px;
+    width:46px;
+    height:46px;
+    place-items:center;
+    border-radius:14px;
+    background:rgba(34,197,94,.11);
+    font-size:24px;
+
+}
+
+.order-review-menu > div{
+
+    min-width:0;
+
+}
+
+.order-review-menu small,
+.order-review-menu strong,
+.order-review-menu > div > span{
+
+    display:block;
+
+}
+
+.order-review-menu small{
+
+    color:#86a3b8;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:1.2px;
+
+}
+
+.order-review-menu strong{
+
+    margin-top:4px;
+    color:#f8fafc;
+    font-size:18px;
+    line-height:1.25;
+
+}
+
+.order-review-menu > div > span{
+
+    margin-top:4px;
+    color:#94a3b8;
+    font-size:12px;
+    line-height:1.4;
+
+}
+
+.order-review-children{
+
+    display:grid;
+    gap:7px;
+    margin:0;
+    padding:0;
+    list-style:none;
+
+}
+
+.order-review-children li{
+
+    display:flex;
+    align-items:center;
+    gap:11px;
+    min-width:0;
+    padding:11px 13px;
+    border:1px solid rgba(255,255,255,.07);
+    border-radius:14px;
+    background:rgba(13,23,40,.72);
+
+}
+
+.order-review-children li > span{
+
+    display:grid;
+    flex:0 0 31px;
+    width:31px;
+    height:31px;
+    place-items:center;
+    border-radius:10px;
+    background:rgba(34,197,94,.12);
+    color:#a3e635;
+    font-size:11px;
+    font-weight:800;
+
+}
+
+.order-review-children li > strong{
+
+    min-width:0;
+    overflow-wrap:anywhere;
+    color:#e2e8f0;
+    font-size:14px;
+
+}
+
+.order-review-details{
+
+    overflow:hidden;
+    border:1px solid rgba(255,255,255,.07);
+    border-radius:14px;
+    background:rgba(8,19,32,.35);
+
+}
+
+.order-review-detail{
+
+    display:grid;
+    grid-template-columns:78px minmax(0,1fr);
+    gap:12px;
+    padding:11px 13px;
+    font-size:12px;
+    line-height:1.45;
+
+}
+
+.order-review-detail + .order-review-detail{
+
+    border-top:1px solid rgba(255,255,255,.07);
+
+}
+
+.order-review-detail span{
+
+    color:#7f93a6;
+
+}
+
+.order-review-detail strong{
+
+    min-width:0;
+    overflow-wrap:anywhere;
+    color:#dbe7ef;
+    font-weight:650;
+
+}
+
+@keyframes wizardStepIn{
+
+    from{
+        opacity:0;
+        transform:translateX(10px);
+    }
+
+    to{
+        opacity:1;
+        transform:translateX(0);
+    }
+
+}
+
+@media (max-width:420px){
+
+    .order-progress{
+        padding-right:8px;
+        padding-left:8px;
+    }
+
+    .order-progress li > small{
+        font-size:10px;
+    }
+
+    .wizard-actions{
+        grid-template-columns:minmax(94px,.68fr) minmax(0,1.32fr);
+        gap:8px;
+    }
+
+    .wizard-btn{
+        min-height:52px;
+        padding:13px 10px;
+        font-size:13px;
+    }
+
+    .order-review-detail{
+        grid-template-columns:66px minmax(0,1fr);
+        gap:9px;
+    }
+
+}
+
+@media (prefers-reduced-motion:reduce){
+
+    .wizard-step.is-active{
+        animation:none;
+    }
+
+}
+
 .order-form-section{
 
     margin-top:26px;
